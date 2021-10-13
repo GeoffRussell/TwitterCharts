@@ -1,0 +1,80 @@
+---
+title: "Analyse BP World Energy Statistics 2021"
+author: "GeoffRussell"
+date: "13/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+library(readxl)
+library(plotly)
+```
+
+## Read bp files
+
+
+```{r data}
+bpfile<-"bp-stats-review-2021-all-data.xlsx"
+s21<-excel_sheets(bpfile)
+print(s21)
+```
+
+```{r pop}
+dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4)
+dfpop$`Country Name` <- gsub("United States","US",dfpop$`Country Name`)
+#-----------------------------------------------
+# getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
+#-----------------------------------------------
+getpop<-function(country) {
+  f<-function(yr) {
+    rp<-dfpop %>% filter(`Country Name`==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
+    m1<-lm(value~poly(as.numeric(year),2),rp)
+    df<-tibble(year=seq(1960,2040),Country=country)
+    rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% rename(Year=year,Popn=pred)
+  }
+}
+getPopForList<-function(countries) {
+  df<-tibble()
+  for(c in countries) {
+    df<-bind_rows(df,getpop(c)(seq(1975,2021)))
+  }
+  df 
+}
+# make some test calls
+dfcs<-getPopForList(c("Australia","Germany","France","US"))
+```
+
+
+```{r}
+f<-function(.data,name) {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(!grepl("^Total ",Country)) %>% filter(!grepl("^Other ",Country)) %>% slice(1:84) %>% 
+    select(Country,'Type','1975':'2020...57') %>% rename('2020'=`2020...57`) %>% 
+    pivot_longer('1975':'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+}
+getSheet<-function(sheetname,cols,label) {
+    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>% f(label) 
+}
+solartwh<-getSheet("Solar Generation - TWh",60,'Solar')
+windtwh<-getSheet("Wind Generation - TWh",60,'Wind')
+hydrotwh<-getSheet("Hydro Generation - TWh",60,'Hydro')
+nucleartwh<-getSheet("Nuclear Generation - TWh",60,'Nuclear')
+geobiomass<-getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
+twh<-bind_rows(solartwh,windtwh,hydrotwh,geobiomass,nucleartwh) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
+getCountryData<-function(.data,countries) {
+    dfc<-getPopForList(countries)
+    .data %>% filter(Country %in% countries) %>% left_join(dfc)
+}
+ctwh<-twh %>% getCountryData(c("Australia","US","France","Germany","Belgium","Sweden"))
+p<-ctwh %>% ggplot(aes(x=Year,y=TWh*1e12/Popn/1e6,fill=Type))+geom_col()+facet_wrap(~Country)+
+  labs(y="Megawatt-hours per capita from clean(ish) energy sources")+theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
+p
+png("cleanish-megawatt-hours-per-person.png",width=1800,height=800,units="px",res=300,type="cairo-png")
+p
+dev.off()
+```
+
+
