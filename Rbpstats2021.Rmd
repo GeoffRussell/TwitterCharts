@@ -13,7 +13,13 @@ library(readxl)
 library(plotly)
 ```
 
-## Read bp files
+## Introduction 
+
+This code analyses data in the BP Statistical Review of World Energy spreadsheet; for the year 2021. 
+
+## Read the data 
+
+We read the data and list the sheets in the spreadsheet. The names change from time to time.
 
 
 ```{r data}
@@ -21,6 +27,15 @@ bpfile<-"bp-stats-review-2021-all-data.xlsx"
 s21<-excel_sheets(bpfile)
 print(s21)
 ```
+## Population data
+
+We will be calculating per-capita statistics so need some population data.
+
+We use a down load of the 2020 World Bank Population data. It's latest year is 2019, so we use a polynomial model
+to extrapolate for years after that; out to 2040. It's not the world's best population modelling, but good
+enough for our purposes.
+
+One wrinkle is that the World Bank country names don't match the BP country names. We throw in ad-hoc renames as required.
 
 ```{r pop}
 dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4)
@@ -36,16 +51,22 @@ getpop<-function(country) {
     rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% rename(Year=year,Popn=pred)
   }
 }
-getPopForList<-function(countries) {
+getPopForList<-function(countries,years=seq(1975,2021)) {
   df<-tibble()
   for(c in countries) {
-    df<-bind_rows(df,getpop(c)(seq(1975,2021)))
+    df<-bind_rows(df,getpop(c)(years))
   }
   df 
 }
-# make some test calls
+# Here's a test call
 dfcs<-getPopForList(c("Australia","Germany","France","US"))
 ```
+
+## Compare historical energy roll out speeds
+
+The first chart in this project is to compare renewable and nuclear roll out speeds. The most rapid
+nuclear rollout various between countries, but it is roughly 1975-1990 in France. So we get
+data between 1975 and 2020 for various technologies and plot them.
 
 
 ```{r}
@@ -63,15 +84,29 @@ windtwh<-getSheet("Wind Generation - TWh",60,'Wind')
 hydrotwh<-getSheet("Hydro Generation - TWh",60,'Hydro')
 nucleartwh<-getSheet("Nuclear Generation - TWh",60,'Nuclear')
 geobiomass<-getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
-twh<-bind_rows(solartwh,windtwh,hydrotwh,geobiomass,nucleartwh) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
+twh<-bind_rows(
+    getSheet("Solar Generation - TWh",60,'Solar'),
+    getSheet("Wind Generation - TWh",60,'Wind'),
+    getSheet("Hydro Generation - TWh",60,'Hydro'),
+    getSheet("Nuclear Generation - TWh",60,'Nuclear'),
+    getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
+  ) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
 getCountryData<-function(.data,countries) {
     dfc<-getPopForList(countries)
     .data %>% filter(Country %in% countries) %>% left_join(dfc)
 }
+#---------------------------------------------------------
+# twh has data for all countries and getCountryData will filter out
+# a selected set and add in the population data
+#---------------------------------------------------------
 ctwh<-twh %>% getCountryData(c("Australia","US","France","Germany","Belgium","Sweden"))
+
 p<-ctwh %>% ggplot(aes(x=Year,y=TWh*1e12/Popn/1e6,fill=Type))+geom_col()+facet_wrap(~Country)+
   labs(y="Megawatt-hours per capita from clean(ish) energy sources")+theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
 p
+#--------------------------------------------------------------------------------------
+# now make a png for posting
+#--------------------------------------------------------------------------------------
 png("cleanish-megawatt-hours-per-person.png",width=1800,height=800,units="px",res=300,type="cairo-png")
 p
 dev.off()
