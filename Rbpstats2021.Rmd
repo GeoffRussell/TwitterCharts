@@ -79,11 +79,6 @@ f<-function(.data,name) {
 getSheet<-function(sheetname,cols,label) {
     read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>% f(label) 
 }
-solartwh<-getSheet("Solar Generation - TWh",60,'Solar')
-windtwh<-getSheet("Wind Generation - TWh",60,'Wind')
-hydrotwh<-getSheet("Hydro Generation - TWh",60,'Hydro')
-nucleartwh<-getSheet("Nuclear Generation - TWh",60,'Nuclear')
-geobiomass<-getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
 twh<-bind_rows(
     getSheet("Solar Generation - TWh",60,'Solar'),
     getSheet("Wind Generation - TWh",60,'Wind'),
