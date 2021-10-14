@@ -70,16 +70,23 @@ data between 1975 and 2020 for various technologies and plot them.
 
 
 ```{r}
-f<-function(.data,name) {
+# plenty of juggling due to how read_excel names its columns
+f<-function(.data,name,startyear="1975",endyear="2020...57") {
   rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
     filter(!grepl("^Total ",Country)) %>% filter(!grepl("^Other ",Country)) %>% slice(1:84) %>% 
-    select(Country,'Type','1975':'2020...57') %>% rename('2020'=`2020...57`) %>% 
-    pivot_longer('1975':'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
 }
-getSheet<-function(sheetname,cols,label) {
-    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>% f(label) 
+getSheet<-function(sheetname,cols,label,startyear="1975") {
+    endyear<-paste0("2020...",toString(cols-3))
+    print(endyear)
+    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
+            f(label,startyear=startyear,endyear=endyear) 
 }
 twh<-bind_rows(
+    getSheet("Elec Gen from Gas",40,'Gas',startyear="1985"),
+    getSheet("Elec Gen from Coal",40,'Coal',startyear="1985"),
+    getSheet("Elec Gen from Oil",40,'Oil',startyear="1985"),
     getSheet("Solar Generation - TWh",60,'Solar'),
     getSheet("Wind Generation - TWh",60,'Wind'),
     getSheet("Hydro Generation - TWh",60,'Hydro'),
@@ -95,9 +102,17 @@ getCountryData<-function(.data,countries) {
 # a selected set and add in the population data
 #---------------------------------------------------------
 ctwh<-twh %>% getCountryData(c("Australia","US","France","Germany","Belgium","Sweden"))
+totaltwh <- ctwh %>% group_by(Country,Year) %>% summarise(total=sum(TWh)) %>% 
+  select(Country,Year,total) %>% left_join(ctwh %>% select(Country,Year,Popn) %>% unique()) 
 
-p<-ctwh %>% ggplot(aes(x=Year,y=TWh*1e12/Popn/1e6,fill=Type))+geom_col()+facet_wrap(~Country)+
-  labs(y="Megawatt-hours per capita from clean(ish) energy sources")+theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
+p<-ctwh %>% filter(!Type %in% c("Gas","Coal","Oil")) %>% ggplot(aes(x=Year,y=TWh*1e12/Popn/1e6))+
+  geom_col(aes(fill=Type))+geom_line(aes(x=Year,y=total*1e12/Popn/1e6,color="black"),data=totaltwh)+
+  guides(fill=guide_legend("Show only"),color=guide_legend("Total"))+
+  scale_color_manual(values=c("black"),)+
+  facet_wrap(~Country)+
+  labs(y="Megawatt-hours per capita from clean(ish) energy sources",
+       title="Electricity production by source (Data: BP Stats 2021) ")+
+  theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
 p
 #--------------------------------------------------------------------------------------
 # now make a png for posting
