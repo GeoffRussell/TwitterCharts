@@ -118,8 +118,25 @@ clist<-twh %>% select(Country) %>% unique()
 #---------------------------------------------------------------------------
 # Now we can augment the data with population and calculate perCap numbers
 #---------------------------------------------------------------------------
-fulldf<-twh %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e9/Popn/1e6)
-fulldfEx<-twhEx %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e9/Popn/1e6)
+fulldf<-twh %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
+fulldfEx<-twhEx %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
+```
+
+```{r}
+#-------------------------------------------------------------------------
+# Now we nest the data for each Country,Type
+#-------------------------------------------------------------------------
+nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
+mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
+selectedCountries<-mnst %>% unnest(cols=c(data)) %>% 
+  filter(Country %in% c("France","Germany","US","Sweden","Belgium","United Kingdom")) %>%
+  filter(Type %in% c("Nuclear","SolarPlusWind","SolarPlusWindPlusBio","Hydro")) 
+p<-selectedCountries %>% ggplot(aes(x=Year,y=inc,color=Type)) + geom_line(size=0.3) + facet_wrap(~Country) + 
+  labs(y="Increase in Megawatt-hours per person over 5 years",title="Electrical energy change by source (data: BP Stats 2021)")+
+  theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
+png("megawatt-hours-per-person-increase.png",width=1800,height=800,units="px",res=300,type="cairo-png")
+p
+dev.off()
 ```
 
 ```{r}
