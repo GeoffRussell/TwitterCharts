@@ -38,14 +38,19 @@ enough for our purposes.
 One wrinkle is that the World Bank country names don't match the BP country names. We throw in ad-hoc renames as required.
 
 ```{r pop}
-dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4)
-dfpop$`Country Name` <- gsub("United States","US",dfpop$`Country Name`)
+dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4) %>% rename(Country=`Country Name`)
+dfpop$Country <- gsub("United States","US",dfpop$Country)
+dfpop$Country <- gsub("Korea, Rep.","South Korea",dfpop$Country)
+dfpop$Country <- gsub("Slovak Republic","Slovakia",dfpop$Country)
+```
+
+```{r}
 #-----------------------------------------------
 # getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
 #-----------------------------------------------
 getpop<-function(country) {
   f<-function(yr) {
-    rp<-dfpop %>% filter(`Country Name`==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
+    rp<-dfpop %>% filter(Country==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
     m1<-lm(value~poly(as.numeric(year),2),rp)
     df<-tibble(year=seq(1960,2040),Country=country)
     rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% rename(Year=year,Popn=pred)
@@ -93,10 +98,31 @@ twh<-bind_rows(
     getSheet("Nuclear Generation - TWh",60,'Nuclear'),
     getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
   ) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
+# Augment twh with sums of various columns
+twhEx<-twh %>% pivot_wider(names_from=c("Type"),values_from="TWh") %>%
+  mutate(SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
+  pivot_longer(cols=`Gas`:`SolarPlusWindPlusBio`,names_to="Type",values_to="TWh")
+
 getCountryData<-function(.data,countries) {
     dfc<-getPopForList(countries)
     .data %>% filter(Country %in% countries) %>% left_join(dfc)
 }
+#----------------------------------------------------------------------
+# Remove countries in twh for which we don't have population data
+#---------------------------------------------------------------------
+removeMissing<-function(.data,df) {
+  semi_join(.data,df %>% select(Country),by=c("Country")) 
+}
+twh <- twh %>% removeMissing(dfpop) 
+clist<-twh %>% select(Country) %>% unique()
+#---------------------------------------------------------------------------
+# Now we can augment the data with population and calculate perCap numbers
+#---------------------------------------------------------------------------
+fulldf<-twh %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e9/Popn/1e6)
+fulldfEx<-twhEx %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e9/Popn/1e6)
+```
+
+```{r}
 #---------------------------------------------------------
 # twh has data for all countries and getCountryData will filter out
 # a selected set and add in the population data
