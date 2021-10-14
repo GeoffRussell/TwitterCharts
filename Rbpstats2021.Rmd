@@ -107,8 +107,8 @@ totaltwh <- ctwh %>% group_by(Country,Year) %>% summarise(total=sum(TWh)) %>%
 
 p<-ctwh %>% filter(!Type %in% c("Gas","Coal","Oil")) %>% ggplot(aes(x=Year,y=TWh*1e12/Popn/1e6))+
   geom_col(aes(fill=Type))+geom_line(aes(x=Year,y=total*1e12/Popn/1e6,color="black"),data=totaltwh)+
-  guides(fill=guide_legend("Show only"),color=guide_legend("Total"))+
-  scale_color_manual(values=c("black"),)+
+  guides(fill=guide_legend("Show only"),color=guide_legend(""))+
+  scale_color_manual(values=c("black"),labels="Total")+
   facet_wrap(~Country)+
   labs(y="Megawatt-hours per capita from clean(ish) energy sources",
        title="Electricity production by source (Data: BP Stats 2021) ")+
