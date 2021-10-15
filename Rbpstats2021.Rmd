@@ -15,7 +15,8 @@ library(plotly)
 
 ## Introduction 
 
-This code analyses data in the BP Statistical Review of World Energy spreadsheet; 
+This code analyses data in the BP 
+Statistical Review of World Energy spreadsheet; 
 for the year 2021. 
 
 ## Read the data 
