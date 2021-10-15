@@ -53,13 +53,14 @@ dfpop$Country <- gsub("Slovak Republic","Slovakia",dfpop$Country)
 ```{r}
 #------------------------------------------------------------------------------------------------
 # getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
+# we unname pred because we don't need names and they confuse me when looking at structures!
 #------------------------------------------------------------------------------------------------
 getpop<-function(country) {
   f<-function(yr) {
     rp<-dfpop %>% filter(Country==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
     m1<-lm(value~poly(as.numeric(year),2),rp)
     df<-tibble(year=seq(1960,2040),Country=country)
-    rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% rename(Year=year,Popn=pred)
+    rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% mutate(Year=year,Popn=unname(pred)) %>% select(-year,-pred) 
   }
 }
 getPopForList<-function(countries,years=seq(1975,2021)) {
@@ -67,10 +68,12 @@ getPopForList<-function(countries,years=seq(1975,2021)) {
   for(c in countries) {
     df<-bind_rows(df,getpop(c)(years))
   }
+  df$Popn<-unname(df$Popn)
   df 
 }
 # Here's a test call
-dfcs<-getPopForList(c("Australia","Germany","France","US"))
+tgetpop<-getpop("Australia")(1975:2000)
+tgetPopForList<-getPopForList(c("Australia","Germany","France","US"))
 ```
 
 ## Compare historical energy roll out speeds
