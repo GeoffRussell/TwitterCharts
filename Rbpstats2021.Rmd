@@ -26,8 +26,8 @@ We read the data and list the sheets in the spreadsheet. The names change from t
 
 ```{r data}
 bpfile<-"bp-stats-review-2021-all-data.xlsx"
-s21<-excel_sheets(bpfile)
-print(s21)
+#s21<-excel_sheets(bpfile)
+#print(s21)
 ```
 ## Population data
 
