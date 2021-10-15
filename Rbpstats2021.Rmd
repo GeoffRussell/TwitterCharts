@@ -150,6 +150,7 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 # Now we can calculate the lag increment for each country and type
 #----------------------------------------------------------
 mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
+mnstmax<-mnst %>% mutate(Max = map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)))
 #-------------------------------------------------------------------------
 # At this point we could go searching for top countries, but for now we just
 # select interesting ones
