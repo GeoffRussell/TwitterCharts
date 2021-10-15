@@ -11,6 +11,7 @@ library(tidyverse)
 library(modelr)
 library(readxl)
 library(plotly)
+library(ggrepel)
 ```
 
 ## Introduction 
@@ -148,9 +149,25 @@ fulldfEx<-twhEx %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Po
 nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 #----------------------------------------------------------
 # Now we can calculate the lag increment for each country and type
+# how much per capita energy they added over a specified period
+# NB slice only works on ungrouped data 
 #----------------------------------------------------------
-mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
-mnstmax<-mnst %>% mutate(Max = map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)))
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,15)))) 
+mnstmax<-mnst %>% mutate(Max=map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)),
+                         MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]))
+top15<-mnstmax %>% filter(Type!="SolarPlusWindPlusBio") %>% arrange(desc(Max)) %>% 
+  select(Country,Type,MaxYear,Max) %>% ungroup() %>% slice_head(n=15) 
+p<-top15 %>% ggplot(aes(x=as.numeric(MaxYear),y=Max))+
+  geom_point(aes(color=Type),size=7)+
+  geom_text_repel(aes(x=as.numeric(MaxYear),y=Max,label=paste0(Country," ",comma(Max))),size=3)+
+  labs(x="Year",y="Max MWh/cap over 15 years",title="Global record energy growth rates (top 15)")
+p
+png("top25-over-15-years.png",width=1800,height=1800,units="px",res=300,type="cairo-png")
+p
+dev.off()
+```
+```{r}
 #-------------------------------------------------------------------------
 # At this point we could go searching for top countries, but for now we just
 # select interesting ones
