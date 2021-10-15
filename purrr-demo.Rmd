@@ -1,0 +1,29 @@
+---
+title: "purrr-demo"
+author: "GeoffRussell"
+date: "10/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+df<-read_csv("Country,Year,Type,TWh,MWhPerCap
+Canada,1980,XXX,6.808,0.261
+Canada,1981,XXX,6.808,0.461
+Canada,1980,SSSS,6.808,0.261
+Canada,1981,SSSS,6.808,0.661
+France,1980,XXX,6.808,0.261
+France,1981,XXX,6.808,1.261
+France,1980,SSSS,6.808,0.261
+France,1981,SSSS,6.808,1.261
+France,1982,SSSS,6.808,2.261
+France,1983,SSSS,6.808,3.861
+")
+#df<-read_csv("xxx1.csv")
+ndf<-df %>% group_by(Country,Type) %>% nest()
+#ndfex<-ndf %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
+#ndfexmax<-ndfex %>% mutate(Max = map_dbl(data, ~ max(.x$inc,na.rm=TRUE))) 
+#write_csv(ndfexmax %>% unnest(),"xxx3.csv")
+
+```
+
