@@ -21,35 +21,39 @@ for the year 2021.
 
 ## Read the data 
 
-We read the data and list the sheets in the spreadsheet. The names change from time to time.
+The names of the sheets
+change from time to time, so when 2022 comes out the code may have to be adjusted.
 
 
 ```{r data}
 bpfile<-"bp-stats-review-2021-all-data.xlsx"
-#s21<-excel_sheets(bpfile)
-#print(s21)
+s21<-excel_sheets(bpfile)
+print(s21)
 ```
 ## Population data
 
 We will be calculating per-capita statistics so need some population data.
 
-We use a down load of the 2020 World Bank Population data. It's latest year is 2019, so we use a polynomial model
-to extrapolate for years after that; out to 2040. It's not the world's best population modelling, but good
+We use a download of the 2020 World Bank Population data. It's latest year is 2019, so we use a polynomial model
+to extrapolate for years after that; out to 2040. It's not the world's best population growth model, but good
 enough for our purposes.
 
-One wrinkle is that the World Bank country names don't match the BP country names. We throw in ad-hoc renames as required.
+One wrinkle is that the World Bank country names don't match the BP country names. So we change
+names of things we may need.
 
 ```{r pop}
-dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4) %>% rename(Country=`Country Name`)
+dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4,show_col_types=FALSE) %>% rename(Country=`Country Name`)
 dfpop$Country <- gsub("United States","US",dfpop$Country)
 dfpop$Country <- gsub("Korea, Rep.","South Korea",dfpop$Country)
 dfpop$Country <- gsub("Slovak Republic","Slovakia",dfpop$Country)
 ```
 
+
+
 ```{r}
-#-----------------------------------------------
+#------------------------------------------------------------------------------------------------
 # getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
-#-----------------------------------------------
+#------------------------------------------------------------------------------------------------
 getpop<-function(country) {
   f<-function(yr) {
     rp<-dfpop %>% filter(Country==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
@@ -71,13 +75,16 @@ dfcs<-getPopForList(c("Australia","Germany","France","US"))
 
 ## Compare historical energy roll out speeds
 
-The first chart in this project is to compare renewable and nuclear roll out speeds. The most rapid
-nuclear rollout various between countries, but it is roughly 1975-1990 in France. So we get
-data between 1975 and 2020 for various technologies and plot them.
+The first task in this project is to compare renewable and nuclear roll out speeds. I've done a few
+such graphs in the past, but I'm doing it again to improve my R skills. 
+
+The most rapid nuclear rollout various between countries, but it is roughly 1975-1990 in France. So we get
+data between 1975 and 2020 for various technologies and compare rates.
 
 
-```{r}
-# plenty of juggling due to how read_excel names its columns
+```{r }
+# plenty of data juggling due to how read_excel names its columns
+# this code will have to change in 2022!
 f<-function(.data,name,startyear="1975",endyear="2020...57") {
   rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
     filter(!grepl("^Total ",Country)) %>% filter(!grepl("^Other ",Country)) %>% slice(1:84) %>% 
@@ -86,10 +93,12 @@ f<-function(.data,name,startyear="1975",endyear="2020...57") {
 }
 getSheet<-function(sheetname,cols,label,startyear="1975") {
     endyear<-paste0("2020...",toString(cols-3))
-    print(endyear)
     read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
             f(label,startyear=startyear,endyear=endyear) 
 }
+# We pull out all the electricity data, and will decide what to keep later
+# the data for electricity from Gas, Coal and Oil starts in 1985, instead of
+# 1965, which is annoying
 twh<-bind_rows(
     getSheet("Elec Gen from Gas",40,'Gas',startyear="1985"),
     getSheet("Elec Gen from Coal",40,'Coal',startyear="1985"),
@@ -100,17 +109,22 @@ twh<-bind_rows(
     getSheet("Nuclear Generation - TWh",60,'Nuclear'),
     getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
   ) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
+```
+
+```{r}
+#-----------------------------------------------
 # Augment twh with sums of various columns
+#-----------------------------------------------
 twhEx<-twh %>% pivot_wider(names_from=c("Type"),values_from="TWh") %>%
   mutate(SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
   pivot_longer(cols=`Gas`:`SolarPlusWindPlusBio`,names_to="Type",values_to="TWh")
 
-getCountryData<-function(.data,countries) {
+mergePopData<-function(.data,countries) {
     dfc<-getPopForList(countries)
     .data %>% filter(Country %in% countries) %>% left_join(dfc)
 }
 #----------------------------------------------------------------------
-# Remove countries in twh for which we don't have population data
+# Remove any countries in twh for which we don't have population data
 #---------------------------------------------------------------------
 removeMissing<-function(.data,df) {
   semi_join(.data,df %>% select(Country),by=c("Country")) 
@@ -120,8 +134,8 @@ clist<-twh %>% select(Country) %>% unique()
 #---------------------------------------------------------------------------
 # Now we can augment the data with population and calculate perCap numbers
 #---------------------------------------------------------------------------
-fulldf<-twh %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
-fulldfEx<-twhEx %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
+fulldf<-twh %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
+fulldfEx<-twhEx %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
 ```
 
 ```{r}
@@ -129,7 +143,14 @@ fulldfEx<-twhEx %>% getCountryData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/
 # Now we nest the data for each Country,Type
 #-------------------------------------------------------------------------
 nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
+#----------------------------------------------------------
+# Now we can calculate the lag increment for each country and type
+#----------------------------------------------------------
 mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
+#-------------------------------------------------------------------------
+# At this point we could go searching for top countries, but for now we just
+# select interesting ones
+#-------------------------------------------------------------------------
 selectedCountries<-mnst %>% unnest(cols=c(data)) %>% 
   filter(Country %in% c("France","Germany","US","Sweden","Belgium","United Kingdom")) %>%
   filter(Type %in% c("Nuclear","SolarPlusWind","SolarPlusWindPlusBio","Hydro")) 
@@ -144,10 +165,15 @@ dev.off()
 
 ```{r}
 #---------------------------------------------------------
-# twh has data for all countries and getCountryData will filter out
+# The above graphs are better, but this next is interesting
+# because of it's use of two legends in the graph. It also
+# has the advantage of not showing things relative to zero;
+# which can confuse some people.
+#---------------------------------------------------------
+# twh has data for all countries and mergePopData will filter out
 # a selected set and add in the population data
 #---------------------------------------------------------
-ctwh<-twh %>% getCountryData(c("Australia","US","France","Germany","Belgium","Sweden"))
+ctwh<-twh %>% mergePopData(c("Australia","US","France","Germany","Belgium","Sweden"))
 totaltwh <- ctwh %>% group_by(Country,Year) %>% summarise(total=sum(TWh)) %>% 
   select(Country,Year,total) %>% left_join(ctwh %>% select(Country,Year,Popn) %>% unique()) 
 
