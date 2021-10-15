@@ -149,7 +149,10 @@ fulldfEx<-twhEx %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Po
 nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 #----------------------------------------------------------
 # Now we can calculate the lag increment for each country and type
+<<<<<<< HEAD
 # how much per capita energy they added over a specified period
+=======
+>>>>>>> c7fda8699c7f4af38f6abe16a3694a77586006e4
 # NB slice only works on ungrouped data 
 #----------------------------------------------------------
 comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
