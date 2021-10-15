@@ -134,6 +134,7 @@ selectedCountries<-mnst %>% unnest(cols=c(data)) %>%
 p<-selectedCountries %>% ggplot(aes(x=Year,y=inc,color=Type)) + geom_line(size=0.3) + facet_wrap(~Country) + 
   labs(y="Increase in Megawatt-hours per person over 5 years",title="Electrical energy change by source (data: BP Stats 2021)")+
   theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
+p
 png("megawatt-hours-per-person-increase.png",width=1800,height=800,units="px",res=300,type="cairo-png")
 p
 dev.off()
