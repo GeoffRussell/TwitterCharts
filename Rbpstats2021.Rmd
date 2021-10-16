@@ -89,16 +89,23 @@ data between 1975 and 2020 for various technologies and compare rates.
 ```{r }
 # plenty of data juggling due to how read_excel names its columns
 # this code will have to change in 2022!
-f<-function(.data,name,startyear="1975",endyear="2020...57") {
+countryFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
   rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
     filter(!grepl("^Total ",Country)) %>% filter(!grepl("^Other ",Country)) %>% slice(1:84) %>% 
     select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
     pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
 }
-getSheet<-function(sheetname,cols,label,startyear="1975") {
+worldTotalFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(grepl("^Total World",Country))  %>% 
+    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+}
+getSheet<-function(sheetname,cols,label,startyear="1975",filter=countryFilter) {
     endyear<-paste0("2020...",toString(cols-3))
     read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
-            f(label,startyear=startyear,endyear=endyear) 
+            filter(label,startyear=startyear,endyear=endyear) %>%
+            mutate(Year=as.numeric(yy)) %>% select(-yy) 
 }
 # We pull out all the electricity data, and will decide what to keep later
 # the data for electricity from Gas, Coal and Oil starts in 1985, instead of
@@ -112,7 +119,44 @@ twh<-bind_rows(
     getSheet("Hydro Generation - TWh",60,'Hydro'),
     getSheet("Nuclear Generation - TWh",60,'Nuclear'),
     getSheet("Geo Biomass Other - TWh",60,'Biomass/Geo')
-  ) %>% mutate(Year=as.numeric(yy)) %>% select(-yy) 
+  ) 
+```
+
+## Plotting solar growth
+
+```{r}
+ex<-function(.data) {
+    mutate(.data,D1=TWh/lag(TWh)-1) %>%  
+    mutate(d1=ifelse(is.infinite(D1)|is.nan(D1)|is.na(D1),0,D1)) %>% 
+    mutate(percentGrowth=ifelse(d1>3,300,d1*100)) %>%
+    mutate(percentGrowth=ifelse(abs(percentGrowth)>95,0,d1*100)) %>%
+    select(-D1,-d1)  
+}
+stwh<-bind_rows(
+    getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilter),
+    getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
+    getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
+) %>% ex()
+wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type))+
+  labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
+  annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
+  xlim(c(2000,2020))
+wshGrowth
+
+wshGrowthRate<-stwh %>% ggplot() + 
+  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),width=4)+
+  labs(title="Percentage growth rates of hydro, solar and wind",y="Percentage growth")+
+  annotate('text',x=2005,y=10,label="Data: BP world energy stats 2021",size=2)+
+  xlim(c(2000,2020))
+wshGrowthRate
+
+png(paste0("wsh-growth-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+print(wshGrowth)
+dev.off()
+png(paste0("wsh-growthrate-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+print(wshGrowthRate)
+dev.off()
+
 ```
 
 ```{r}
@@ -153,21 +197,30 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 # NB slice only works on ungrouped data 
 #----------------------------------------------------------
 comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 rollingperiod<-10
+tmp<-tibble()
 makeRollingGraph<-function(rp) {
     mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,rp)))) 
     mnstmax<-mnst %>% mutate(Max=map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)),
-                         MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]))
+                         MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]),
+                         MaxPop=map(data, ~ ceiling(.$Popn[which.max(replace_na(.x$inc,0))]))
+                         )
+    tmp<<-mnstmax
     top15<-mnstmax %>% filter(Type!="SolarPlusWindPlusBio") %>% 
       arrange(desc(Max)) %>% 
-      select(Country,Type,MaxYear,Max) %>% ungroup() %>% 
+      select(Country,Type,MaxYear,Max,MaxPop) %>% ungroup() %>% 
         slice_head(n=30) %>% 
         mutate(Rank=rank(desc(Max))) 
     p<-top15 %>% mutate(Key=paste0(Rank,". ",Country,", ",MaxYear)) %>%
-      ggplot(aes(x=reorder(Key,Max),y=Max,fill=Type))+geom_col()+coord_flip()+
-      scale_fill_manual(values=c("darkolivegreen3","black","grey","#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
-      labs(x="",title=paste0("Peak megawatt-hours per person added in ",rp," years"),
-           y="Megawatt-hours")
+      ggplot(aes(x=reorder(Key,Max),y=Max,fill=Type))+
+      geom_col()+
+      geom_text(aes(y=Max+0.2,label=paste0(comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0))+
+      coord_flip()+
+      scale_fill_manual(values=c("darkolivegreen3","black","grey",
+                                 "#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
+      labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
+           y="Megawatt-hours (barend text is population)")+ylim(c(0,25))
       png(paste0("rollout-top-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
       print(p)
       dev.off()
