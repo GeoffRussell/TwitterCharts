@@ -165,7 +165,7 @@ makeRollingGraph<-function(rp) {
         mutate(Rank=rank(desc(Max))) 
     p<-top15 %>% mutate(Key=paste0(Rank,". ",Country,", ",MaxYear)) %>%
       ggplot(aes(x=reorder(Key,Max),y=Max,fill=Type))+geom_col()+coord_flip()+
-      scale_fill_manual(values=c("darkolivegreen3","black","grey","blue","green","darkslategrey","#FFFF00","#FFFF99"))+
+      scale_fill_manual(values=c("darkolivegreen3","black","grey","#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
       labs(x="",title=paste0("Peak megawatt-hours per person added in ",rp," years"),
            y="Megawatt-hours")
       png(paste0("rollout-top-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
