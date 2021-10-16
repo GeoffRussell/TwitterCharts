@@ -122,10 +122,14 @@ twh<-bind_rows(
   ) 
 ```
 
-## Plotting solar growth
+## Plotting wind, solar and hydro growth
 
 ```{r}
-ex<-function(.data) {
+#--------------------------------------------------------------------------
+# cleaning up the data is complicated by missing values early in the series 
+# so we start in 1998 and just plot from 2000
+#--------------------------------------------------------------------------
+calcAndClean<-function(.data) {
     mutate(.data,D1=TWh/lag(TWh)-1) %>%  
     mutate(d1=ifelse(is.infinite(D1)|is.nan(D1)|is.na(D1),0,D1)) %>% 
     mutate(percentGrowth=ifelse(d1>3,300,d1*100)) %>%
@@ -136,7 +140,7 @@ stwh<-bind_rows(
     getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilter),
     getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
     getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
-) %>% ex()
+) %>% calcAndClean()
 wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type))+
   labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
   annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
