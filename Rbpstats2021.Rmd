@@ -236,20 +236,11 @@ makeRollingGraph(15)
 
 
 ```{r}
-p<-top15 %>% ggplot(aes(x=as.numeric(MaxYear),y=Max))+
-  geom_point(aes(color=Type),size=7)+
-  geom_text_repel(aes(x=as.numeric(MaxYear),y=Max,label=paste0(Country," ",comma(Max))),size=3)+
-  labs(x="Year",y="Max MWh/cap over 15 years",title="Global record energy growth rates (top 15)")
-p
-png("top25-over-15-years.png",width=1800,height=1800,units="px",res=300,type="cairo-png")
-p
-dev.off()
-```
-```{r}
 #-------------------------------------------------------------------------
 # At this point we could go searching for top countries, but for now we just
 # select interesting ones
 #-------------------------------------------------------------------------
+mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,5)))) 
 selectedCountries<-mnst %>% unnest(cols=c(data)) %>% 
   filter(Country %in% c("France","Germany","US","Sweden","Belgium","United Kingdom")) %>%
   filter(Type %in% c("Nuclear","SolarPlusWind","SolarPlusWindPlusBio","Hydro")) 
