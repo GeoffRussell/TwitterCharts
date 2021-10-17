@@ -169,14 +169,14 @@ stwh<-bind_rows(
     getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
     getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
 ) %>% calcAndClean()
-wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type))+
+wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type),size=1)+
   labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
   annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
   xlim(c(2000,2020))
 wshGrowth
 
 wshGrowthRate<-stwh %>% ggplot() + 
-  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),width=4)+
+  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),size=1)+
   labs(title="Percentage growth rates of hydro, solar and wind",y="Percentage growth")+
   annotate('text',x=2005,y=10,label="Data: BP world energy stats 2021",size=2)+
   xlim(c(2000,2020))
@@ -255,6 +255,7 @@ makeRollingGraph<-function(rp,ntop=30) {
 makeRollingGraph(7,ntop=50)
 makeRollingGraph(15,ntop=30)
 makeRollingGraph(10,ntop=30)
+makeRollingGraph(20,ntop=20)
 ```
 
 
