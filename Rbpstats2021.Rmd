@@ -12,6 +12,8 @@ library(modelr)
 library(readxl)
 library(plotly)
 library(ggrepel)
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 ```
 
 ## Introduction 
@@ -131,7 +133,8 @@ twh<-bind_rows(
 ```{r}
 solarByCountry<-twh %>% filter(Type=="Solar",Year>=1995) %>% group_by(Country) %>% nest()
 tmp <- solarByCountry %>% mutate(MaxTWh=map_dbl(data, ~ max(replace_na(.x$TWh,0),na.rm=TRUE))) %>% 
-  arrange(desc(MaxTWh)) %>% ungroup() %>% slice(1:15) %>% unnest(data) %>% mergePopData(tmp$Country %>% unique) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6) 
+  arrange(desc(MaxTWh)) %>% ungroup() %>% slice(1:15) %>% unnest(data) 
+tmp <- tmp %>%  mergePopData(tmp$Country %>% unique) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6) 
 p<-tmp %>% ggplot(aes(x=Year,y=MWhPerCap)) + geom_line() + facet_wrap(~Country) 
 p
 ttmp<-tmp %>% filter(!Country %in% c("Turkey","Vietnam")) %>%
@@ -220,8 +223,6 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 # how much per capita energy they added over a specified period
 # NB slice only works on ungrouped data 
 #----------------------------------------------------------
-comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
-comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 rollingperiod<-10
 tmp<-tibble()
 makeRollingGraph<-function(rp) {
