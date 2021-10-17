@@ -75,6 +75,10 @@ getPopForList<-function(countries,years=seq(1975,2021)) {
 # Here's a test call
 tgetpop<-getpop("Australia")(1975:2000)
 tgetPopForList<-getPopForList(c("Australia","Germany","France","US"))
+mergePopData<-function(.data,countries) {
+    dfc<-getPopForList(countries)
+    .data %>% filter(Country %in% countries) %>% left_join(dfc)
+}
 ```
 
 ## Compare historical energy roll out speeds
@@ -122,7 +126,27 @@ twh<-bind_rows(
   ) 
 ```
 
-## Plotting wind, solar and hydro growth
+## Plotting wind, solar and hydro growth by country
+
+```{r}
+solarByCountry<-twh %>% filter(Type=="Solar",Year>=1995) %>% group_by(Country) %>% nest()
+tmp <- solarByCountry %>% mutate(MaxTWh=map_dbl(data, ~ max(replace_na(.x$TWh,0),na.rm=TRUE))) %>% 
+  arrange(desc(MaxTWh)) %>% ungroup() %>% slice(1:15) %>% unnest(data) %>% mergePopData(tmp$Country %>% unique) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6) 
+p<-tmp %>% ggplot(aes(x=Year,y=MWhPerCap)) + geom_line() + facet_wrap(~Country) 
+p
+ttmp<-tmp %>% filter(!Country %in% c("Turkey","Vietnam")) %>%
+  mutate(growth=100*(MWhPerCap-lag(MWhPerCap))/lag(MWhPerCap)) %>% filter(Year>=2000) 
+p<-ttmp %>% ggplot(aes(x=Year,y=growth)) + 
+  geom_line() + xlim(NA,2022)+ labs(y="Growth Percentage",title="Solar growth rates in countries with the most solar power") +  
+  geom_text(aes(x=Year,y=growth+100,label=comma(growth)),data=ttmp %>% filter(Year==2020)) + 
+  facet_wrap(~Country) 
+p
+png(paste0("solar-growth-rates-by-top-countries-2000-2020.png"),width=1800,height=1800,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+
+```
+## Plotting wind, solar and hydro growth globally
 
 ```{r}
 #--------------------------------------------------------------------------
@@ -171,10 +195,6 @@ twhEx<-twh %>% pivot_wider(names_from=c("Type"),values_from="TWh") %>%
   mutate(SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
   pivot_longer(cols=`Gas`:`SolarPlusWindPlusBio`,names_to="Type",values_to="TWh")
 
-mergePopData<-function(.data,countries) {
-    dfc<-getPopForList(countries)
-    .data %>% filter(Country %in% countries) %>% left_join(dfc)
-}
 #----------------------------------------------------------------------
 # Remove any countries in twh for which we don't have population data
 #---------------------------------------------------------------------
