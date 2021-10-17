@@ -14,6 +14,7 @@ library(plotly)
 library(ggrepel)
 comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
 comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+comma2<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
 ```
 
 ## Introduction 
@@ -223,9 +224,8 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 # how much per capita energy they added over a specified period
 # NB slice only works on ungrouped data 
 #----------------------------------------------------------
-rollingperiod<-10
 tmp<-tibble()
-makeRollingGraph<-function(rp) {
+makeRollingGraph<-function(rp,ntop=30) {
     mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,rp)))) 
     mnstmax<-mnst %>% mutate(Max=map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)),
                          MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]),
@@ -235,24 +235,26 @@ makeRollingGraph<-function(rp) {
     top15<-mnstmax %>% filter(Type!="SolarPlusWindPlusBio") %>% 
       arrange(desc(Max)) %>% 
       select(Country,Type,MaxYear,Max,MaxPop) %>% ungroup() %>% 
-        slice_head(n=30) %>% 
+        slice_head(n=ntop) %>% 
         mutate(Rank=rank(desc(Max))) 
     p<-top15 %>% mutate(Key=paste0(Rank,". ",Country,", ",MaxYear)) %>%
       ggplot(aes(x=reorder(Key,Max),y=Max,fill=Type))+
       geom_col()+
-      geom_text(aes(y=Max+0.2,label=paste0(comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0))+
+      geom_text(aes(y=Max+0.2,label=paste0(comma2(Max),", ",comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0))+
       coord_flip()+
       scale_fill_manual(values=c("darkolivegreen3","black","grey",
                                  "#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
       labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
-           y="Megawatt-hours (barend text is population)")+ylim(c(0,25))
-      png(paste0("rollout-top-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+           y="Megawatt-hours (barend text MWh/cap,population)")+ylim(c(0,25))+
+      annotate('text',x=3,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)
+      png(paste0("rollout-top",ntop,"-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
       print(p)
       dev.off()
       print(p)
 }
-makeRollingGraph(7)
-makeRollingGraph(15)
+makeRollingGraph(7,ntop=50)
+makeRollingGraph(15,ntop=30)
+makeRollingGraph(10,ntop=30)
 ```
 
 
