@@ -59,6 +59,12 @@ dfpop$Country <- gsub("Slovak Republic","Slovakia",dfpop$Country)
 # getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
 # we unname pred because we don't need names and they confuse me when looking at structures!
 #------------------------------------------------------------------------------------------------
+#----------------------------------------------------------------------
+# Remove any countries in twh for which we don't have population data
+#---------------------------------------------------------------------
+removeMissing<-function(.data,df) {
+  semi_join(.data,df %>% select(Country),by=c("Country")) 
+}
 getpop<-function(country) {
   f<-function(yr) {
     rp<-dfpop %>% filter(Country==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
@@ -75,12 +81,24 @@ getPopForList<-function(countries,years=seq(1975,2021)) {
   df$Popn<-unname(df$Popn)
   df 
 }
+getTotalTWhForList<-function(countries,years=seq(1975,2021)) {
+  df<-tibble()
+  for(c in countries) {
+    df<-bind_rows(df,(countryTWh %>% filter(Country==c)))
+  }
+  df$totalTWh<-unname(df$totalTWh)
+  df 
+}
 # Here's a test call
 tgetpop<-getpop("Australia")(1975:2000)
 tgetPopForList<-getPopForList(c("Australia","Germany","France","US"))
 mergePopData<-function(.data,countries) {
     dfc<-getPopForList(countries)
     .data %>% filter(Country %in% countries) %>% left_join(dfc)
+}
+mergeTotalTWhData<-function(.data,countries) {
+    dfe<-getTotalTWhForList(countries)
+    .data %>% filter(Country %in% countries) %>% left_join(dfe)
 }
 ```
 
@@ -114,6 +132,16 @@ getSheet<-function(sheetname,cols,label,startyear="1975",filter=countryFilter) {
             filter(label,startyear=startyear,endyear=endyear) %>%
             mutate(Year=as.numeric(yy)) %>% select(-yy) 
 }
+#-------------------------------------------------------------------------------------------
+# We will eventually need per cap Electricity by country
+#-------------------------------------------------------------------------------------------
+countryTWh<-bind_rows(
+    getSheet("Electricity Generation ",40,'Electricity',startyear="1985"),
+) %>% group_by(Country) %>% summarize(totalTWh=max(TWh)) 
+countryTWh <- countryTWh %>% removeMissing(dfpop)
+countryTotalMWhPerCap<-getPopForList(countryTWh$Country,2021) %>% left_join(countryTWh) %>%
+  mutate(totalMWhPerCap=totalTWh*1e12/Popn/1e6) %>% # NB this is an annual figure
+  select(Country,totalMWhPerCap)
 # We pull out all the electricity data, and will decide what to keep later
 # the data for electricity from Gas, Coal and Oil starts in 1985, instead of
 # 1965, which is annoying
@@ -135,7 +163,10 @@ twh<-bind_rows(
 solarByCountry<-twh %>% filter(Type=="Solar",Year>=1995) %>% group_by(Country) %>% nest()
 tmp <- solarByCountry %>% mutate(MaxTWh=map_dbl(data, ~ max(replace_na(.x$TWh,0),na.rm=TRUE))) %>% 
   arrange(desc(MaxTWh)) %>% ungroup() %>% slice(1:15) %>% unnest(data) 
-tmp <- tmp %>%  mergePopData(tmp$Country %>% unique) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6) 
+tmp <- tmp %>%  mergePopData(tmp$Country %>% unique) %>% 
+  mutate(MWhPerCap=TWh*1e12/Popn/1e6) # NB this is over the period
+
+
 p<-tmp %>% ggplot(aes(x=Year,y=MWhPerCap)) + geom_line() + facet_wrap(~Country) 
 p
 ttmp<-tmp %>% filter(!Country %in% c("Turkey","Vietnam")) %>%
@@ -199,25 +230,20 @@ twhEx<-twh %>% pivot_wider(names_from=c("Type"),values_from="TWh") %>%
   mutate(SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
   pivot_longer(cols=`Gas`:`SolarPlusWindPlusBio`,names_to="Type",values_to="TWh")
 
-#----------------------------------------------------------------------
-# Remove any countries in twh for which we don't have population data
-#---------------------------------------------------------------------
-removeMissing<-function(.data,df) {
-  semi_join(.data,df %>% select(Country),by=c("Country")) 
-}
 twh <- twh %>% removeMissing(dfpop) 
 clist<-twh %>% select(Country) %>% unique()
 #---------------------------------------------------------------------------
 # Now we can augment the data with population and calculate perCap numbers
 #---------------------------------------------------------------------------
-fulldf<-twh %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
-fulldfEx<-twhEx %>% mergePopData(clist$Country) %>% mutate(MWhPerCap=TWh*1e12/Popn/1e6)
+fulldfEx<-twhEx %>% mergePopData(clist$Country) %>% 
+  mutate(MWhPerCap=TWh*1e12/Popn/1e6) # NB this is over the period
 ```
 
 ```{r}
 #-------------------------------------------------------------------------
 # Now we nest the data for each Country,Type
 #-------------------------------------------------------------------------
+write_csv(fulldfEx,file="growthtables2021.csv")
 nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 #----------------------------------------------------------
 # Now we can calculate the lag increment for each country and type
@@ -227,32 +253,41 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 tmp<-tibble()
 makeRollingGraph<-function(rp,ntop=30) {
     mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,rp)))) 
+ #               mergeTotalTWhData(nst$Country %>% unique) %>%
+ #               mutate(totalMWhPerCap=totalTWh*1e12/Popn/1e6) # NB this is an annual figure
+    
     mnstmax<-mnst %>% mutate(Max=map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)),
                          MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]),
                          MaxPop=map(data, ~ ceiling(.$Popn[which.max(replace_na(.x$inc,0))]))
-                         )
-    tmp<<-mnstmax
+                         ) %>% left_join(countryTotalMWhPerCap)
+    tmp<<-mnstmax 
     top15<-mnstmax %>% filter(Type!="SolarPlusWindPlusBio") %>% 
       arrange(desc(Max)) %>% 
-      select(Country,Type,MaxYear,Max,MaxPop) %>% ungroup() %>% 
+      select(Country,Type,MaxYear,Max,MaxPop,totalMWhPerCap) %>% ungroup() %>% 
         slice_head(n=ntop) %>% 
         mutate(Rank=rank(desc(Max))) 
     p<-top15 %>% mutate(Key=paste0(Rank,". ",Country,", ",MaxYear)) %>%
-      ggplot(aes(x=reorder(Key,Max),y=Max,fill=Type))+
+      mutate(therow=reorder(Key,Max)) %>%
+      ggplot(aes(x=therow,y=Max,fill=Type))+
+      geom_point(aes(y=totalMWhPerCap,shape="Current MWh/Cap"),alpha=0.3,size=2) +
+      geom_point(aes(y=totalMWhPerCap*1.5,shape="2050 Target"),alpha=0.3,size=3,color="red") +
+      #geom_rect(aes(xmin=therow-0.5,xmax=therow+0.4,ymin=totalMWhPerCap-1,ymax=totalMWhPerCap+1),fill="red",alpha=0.3) +
       geom_col()+
       geom_text(aes(y=Max+0.2,label=paste0(comma2(Max),", ",comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0))+
       coord_flip()+
       scale_fill_manual(values=c("darkolivegreen3","black","grey",
                                  "#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
       labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
-           y="Megawatt-hours (barend text MWh/cap,population)")+ylim(c(0,25))+
-      annotate('text',x=3,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)
+           y="Megawatt-hours (barend text MWh/cap,population)")+ylim(c(0,30))+
+      annotate('text',x=3,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)+
+      scale_shape_manual(values=c(19,1),labels=c("2050 Target","Current MWh/Cap"))+
+      guides(shape=guide_legend("Targets"))
       png(paste0("rollout-top",ntop,"-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
       print(p)
       dev.off()
       print(p)
 }
-makeRollingGraph(7,ntop=50)
+makeRollingGraph(7,ntop=20)
 makeRollingGraph(15,ntop=30)
 makeRollingGraph(10,ntop=30)
 makeRollingGraph(20,ntop=20)
