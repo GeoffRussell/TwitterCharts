@@ -292,7 +292,7 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
       coord_flip()+
       scale_fill_manual(values=colorVals)+
       labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
-           y="Bar is MWh added over period")+ylim(c(0,40))+
+           y="MWh per person over period")+ylim(c(0,40))+
       annotate('text',x=2,y=20,hjust=0,label="Data: BP World Energy Stats 2021",size=2)+
       scale_shape_manual(values=c(19,8,1),labels=c("2050 Target", "Current Clean", "Current MWh/Cap"
                                                    ))+
