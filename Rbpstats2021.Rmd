@@ -268,7 +268,8 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
       select(Country,TWh,Popn) %>% mutate(cleanMWhPerCap=TWh*1e12/Popn/1e6) %>% select(-TWh,-Popn)
     tmpClean<<-cleanData
     mnstmax<-mnstmax %>% left_join(cleanData)
-    write_csv(mnstmax %>% unnest(c(data,MaxYear,MaxPop)),file="growthtables2021.csv")
+    write_csv(mnstmax %>% unnest(c(data,MaxYear,MaxPop)),file=paste0("growthtables2021-",rp,".csv"))
+    saveRDS(mnstmax %>% unnest(c(data,MaxYear,MaxPop)),file=paste0("growthtables2021-",rp,".rds"))
     tmpmnst<<-mnstmax 
     # dbg: write_csv(nst %>% unnest() %>% filter(Country=="Iceland"),paste0("unnested",rp,"-",ntop,".csv"))
     # dbg: write_csv(mnstmax %>% unnest() %>% filter(Country=="Iceland"),paste0("unnestedmax",rp,"-",ntop,".csv"))
