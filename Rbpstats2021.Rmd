@@ -288,20 +288,23 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
       geom_point(aes(y=totalMWhPerCap*2,shape="2050 Target"),alpha=0.8,size=2) +
       geom_point(aes(y=totalMWhPerCap,shape="Current MWh/Cap"),alpha=0.8,size=1) +
       geom_point(aes(y=cleanMWhPerCap,shape="Current Clean"),alpha=0.8,size=1) +
-      geom_rect(aes(ymin=cleanMWhPerCap,ymax=totalMWhPerCap*2,
-        xmax=as.numeric(factor(reorder(Key,Max)))+0.4,
-        xmin=as.numeric(factor(reorder(Key,Max)))-0.4),alpha=0.3,fill="forestgreen") +
       geom_text(aes(y=Max+1,label=paste0(comma2(Max)),hjust=0),size=3)+ 
-      geom_text(aes(y=totalMWhPerCap*2+1,label=paste0(comma2((totalMWhPerCap*2-cleanMWhPerCap)/Max),"x",rp," yrs"),hjust=0),size=3)+ 
       coord_flip()+
       scale_fill_manual(values=colorVals)+
       labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
-           y="Megawatt-hours increment (barend text MWh/cap,population in last year)")+ylim(c(0,40))+
-      annotate('text',x=2,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)+
-      scale_shape_manual(values=c(19,8,1),labels=c("2050 Target",
-                                                   "Current Clean", "Current MWh/Cap"
+           y="Bar is MWh added over period")+ylim(c(0,40))+
+      annotate('text',x=2,y=20,hjust=0,label="Data: BP World Energy Stats 2021",size=2)+
+      scale_shape_manual(values=c(19,8,1),labels=c("2050 Target", "Current Clean", "Current MWh/Cap"
                                                    ))+
       guides(shape=guide_legend("Targets"))
+      if (length(rmTypes)>2) {
+        p<-p+ geom_rect(aes(ymin=cleanMWhPerCap,ymax=totalMWhPerCap*2,
+              xmax=as.numeric(factor(reorder(Key,Max)))+0.4,
+              xmin=as.numeric(factor(reorder(Key,Max)))-0.4),alpha=0.3,fill="forestgreen") +
+            geom_text(aes(y=totalMWhPerCap*2+1,
+            label=paste0(comma2((totalMWhPerCap*2-cleanMWhPerCap)/Max),"x",rp," yrs"),hjust=0),size=3)
+      }
+    
       t<-fulldfEx %>% select(Type) %>% unique() %>% filter(!Type %in% rmTypes) %>% map(~substr(.,1,1))
       t<-paste(unlist(t),sep="",collapse="")
       png(paste0("rollout-top",ntop,"-over-",rp,"-years-",t,".png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
