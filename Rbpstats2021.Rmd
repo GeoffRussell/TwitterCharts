@@ -227,9 +227,13 @@ dev.off()
 # Augment twh with sums of various columns
 #-----------------------------------------------
 twhEx<-twh %>% pivot_wider(names_from=c("Type"),values_from="TWh") %>%
-  mutate(SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
+  mutate(Clean=Solar+Wind+Nuclear+Hydro,SolarPlusWind=Solar+Wind,SolarPlusWindPlusBio=Solar+Wind+`Biomass/Geo`) %>%
   pivot_longer(cols=`Gas`:`SolarPlusWindPlusBio`,names_to="Type",values_to="TWh")
 
+#-----------------------------------------------
+# Remove Countries for which we have no population figures 
+# and build a country list
+#-----------------------------------------------
 twh <- twh %>% removeMissing(dfpop) 
 clist<-twh %>% select(Country) %>% unique()
 #---------------------------------------------------------------------------
@@ -250,37 +254,42 @@ nst<-fulldfEx %>% group_by(Country,Type) %>% arrange(Year) %>% nest()
 # how much per capita energy they added over a specified period
 # NB slice only works on ungrouped data 
 #----------------------------------------------------------
-tmp<-tibble()
+tmpmnst<-tibble()
+tmpClean<-tibble()
 makeRollingGraph<-function(rp,ntop=30) {
     mnst<-nst %>% mutate(data=map(data,~mutate(.x,inc=.$MWhPerCap-lag(.$MWhPerCap,rp)))) 
- #               mergeTotalTWhData(nst$Country %>% unique) %>%
- #               mutate(totalMWhPerCap=totalTWh*1e12/Popn/1e6) # NB this is an annual figure
-    
     mnstmax<-mnst %>% mutate(Max=map_dbl(data, ~ max(replace_na(.x$inc,0),na.rm=TRUE)),
                          MaxYear=map(data, ~ .$Year[which.max(replace_na(.x$inc,0))]),
                          MaxPop=map(data, ~ ceiling(.$Popn[which.max(replace_na(.x$inc,0))]))
                          ) %>% left_join(countryTotalMWhPerCap)
-    tmp<<-mnstmax 
-    top15<-mnstmax %>% filter(Type!="SolarPlusWindPlusBio") %>% 
+    cleanData <- fulldfEx %>% filter(Type=="Clean",Year=="2020") %>% 
+      select(Country,TWh,Popn) %>% mutate(cleanMWhPerCap=TWh*1e12/Popn/1e6) %>% select(-TWh,-Popn)
+    tmpClean<<-cleanData
+    mnstmax<-mnstmax %>% left_join(cleanData)
+    tmpmnst<<-mnstmax 
+    # dbg: write_csv(nst %>% unnest() %>% filter(Country=="Iceland"),paste0("unnested",rp,"-",ntop,".csv"))
+    # dbg: write_csv(mnstmax %>% unnest() %>% filter(Country=="Iceland"),paste0("unnestedmax",rp,"-",ntop,".csv"))
+    top15<-mnstmax %>% filter(!Type %in% c("SolarPlusWindPlusBio","Clean")) %>% 
       arrange(desc(Max)) %>% 
-      select(Country,Type,MaxYear,Max,MaxPop,totalMWhPerCap) %>% ungroup() %>% 
+      select(Country,Type,MaxYear,Max,MaxPop,cleanMWhPerCap,totalMWhPerCap) %>% ungroup() %>% 
         slice_head(n=ntop) %>% 
         mutate(Rank=rank(desc(Max))) 
     p<-top15 %>% mutate(Key=paste0(Rank,". ",Country,", ",MaxYear)) %>%
       mutate(therow=reorder(Key,Max)) %>%
       ggplot(aes(x=therow,y=Max,fill=Type))+
-      geom_point(aes(y=totalMWhPerCap,shape="Current MWh/Cap"),alpha=0.3,size=2) +
-      geom_point(aes(y=totalMWhPerCap*1.5,shape="2050 Target"),alpha=0.3,size=3,color="red") +
-      #geom_rect(aes(xmin=therow-0.5,xmax=therow+0.4,ymin=totalMWhPerCap-1,ymax=totalMWhPerCap+1),fill="red",alpha=0.3) +
-      geom_col()+
-      geom_text(aes(y=Max+0.2,label=paste0(comma2(Max),", ",comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0))+
-      coord_flip()+
+      geom_point(aes(y=totalMWhPerCap*1.5,shape="2050 Target"),alpha=0.8,size=2,fill="red") +
+      geom_point(aes(y=totalMWhPerCap,shape="Current MWh/Cap"),alpha=0.8,size=1) +
+      geom_point(aes(y=cleanMWhPerCap,shape="Current Clean"),alpha=0.8,size=2) +
+      geom_col(alpha=1)+
+      geom_text(aes(y=30,label=paste0(comma2(Max),", ",comma3(as.numeric(MaxPop)/1e6),"m"),hjust=0),size=3)+ coord_flip()+
       scale_fill_manual(values=c("darkolivegreen3","black","grey",
                                  "#3399FF","green","darkslategrey","#FFFF00","#FFFF99"))+
       labs(x="",title=paste0("Highest megawatt-hours per person added in ",rp," years"),
-           y="Megawatt-hours (barend text MWh/cap,population)")+ylim(c(0,30))+
-      annotate('text',x=3,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)+
-      scale_shape_manual(values=c(19,1),labels=c("2050 Target","Current MWh/Cap"))+
+           y="Megawatt-hours increment (barend text MWh/cap,population in last year)")+ylim(c(0,34))+
+      annotate('text',x=2,y=10,hjust=0,label="Data: BP World Energy Stats 2021",size=3)+
+      scale_shape_manual(values=c(19,8,1),labels=c("2050 Target",
+                                                   "Current Clean", "Current MWh/Cap"
+                                                   ))+
       guides(shape=guide_legend("Targets"))
       png(paste0("rollout-top",ntop,"-over-",rp,"-years.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
       print(p)
@@ -289,8 +298,8 @@ makeRollingGraph<-function(rp,ntop=30) {
 }
 makeRollingGraph(7,ntop=20)
 makeRollingGraph(15,ntop=30)
-makeRollingGraph(10,ntop=30)
 makeRollingGraph(20,ntop=20)
+makeRollingGraph(10,ntop=30)
 ```
 
 
