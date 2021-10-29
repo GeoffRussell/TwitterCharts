@@ -1,0 +1,38 @@
+---
+title: "dim2barchart"
+author: "GeoffRussell"
+date: "10/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+```{r}
+df<-tribble(
+  ~Region,~PerCapEnergy,~Population,
+  "North America",1500,490,
+  "European Union",700,510,
+  "China",400,1400,
+  "Mid East and Nth Africa",320,420,
+  "Latin America & Carribean",240,630,
+  "India",85,1340,
+  "SE Asia & Others",75,1740,
+  "Sub-Saharan Africa",58,1080
+)
+df <- df %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
+p<-df %>% ggplot()+
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=reorder(Region,PerCapEnergy,desc=FALSE))) +
+  geom_text(aes(x=xmin+60,y=ymax+110,label=Region,hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(PerCapEnergy,"w"),hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(Population,"m"),hjust=0),size=2)+
+  scale_fill_brewer(palette="OrRd")+
+  labs(y="Watts (power) per person",x="Population")
+p
+png(paste0("thorcon-pop-energy.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
+p
+dev.off()
+```
