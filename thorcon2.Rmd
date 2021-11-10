@@ -37,6 +37,15 @@ s21<-excel_sheets(bpfile)
 print(s21)
 worldPop20<-7.795e9
 ```
+We add some miscellaneous functions here.
+
+```{r}
+getPalette = colorRampPalette(brewer.pal(9, "OrRd"))
+# this breaks of lists into lines of about 40 chars at a blank
+splitter<- function(s) {
+    gsub('(.{1,40})(\\s|$)', '\\1\n', s)
+}
+```
 
 ## Population data
 
@@ -270,30 +279,26 @@ dev.off()
 ```
 We are eventually going to need to list all the countries in each region.
 ```{r}
-# this breaks of lists into lines of about 40 chars at a blank
-splitter<- function(s) {
-    gsub('(.{1,40})(\\s|$)', '\\1\n', s)
-}
 regionCountries<-regions %>% group_by(Region) %>% 
   mutate(str=splitter(paste(Country,sep=", ",collapse=", "))) %>% 
   ungroup() %>% select(Region,str) %>% unique()
 ```
 
 ```{r}
-# This builds a bunch of rectangle,
+# This builds a bunch of rectangles,
 # we don't need it because plotly allows bars of different widths, but its a very 
 # useful trick for looping through rows
-l<-list()
-l<-pdf %>% pmap(
-  function(...) {
-    c<-tibble(...)
-    l<-append(l,list(type="rect",text=c$Region,hoverinfo="text",x0=c$xmin,x1=c$xmax,
-                     y0=c$ymin,y1=c$ymax,fillcolor=c$colr,opacity=0.2,line=list(width=0)))
-  }
-)
+#l<-list()
+#l<-pdf %>% pmap(
+#  function(...) {
+#    c<-tibble(...)
+#    l<-append(l,list(type="rect",text=c$Region,hoverinfo="text",x0=c$xmin,x1=c$xmax,
+#                     y0=c$ymin,y1=c$ymax,fillcolor=c$colr,opacity=0.2,line=list(width=0)))
+#  }
+#)
 ```
 
-Now lets try a plotly version.
+Now let's try a plotly version.
 
 ```{r}
 pdf<-df %>% left_join(regionCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
@@ -343,9 +348,8 @@ qdfg<-dgroups %>% group_by(Quantile) %>%
   arrange(desc(PerCapEnergy)) %>% rename(Region=Quantile)
 qdfg<-bind_rows(qdfg,restOfWorld)
 dfgroups <- qdfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
-qList<-unlist(d$Quantile %>% unique())
+qList<-unlist(dgroups$Quantile %>% unique())
 qList<-append(qList,"RestOfWorld")
-getPalette = colorRampPalette(brewer.pal(9, "OrRd"))
 
 totalgw<-dfgroups %>% summarise(sum(PerCapEnergy*Population/1000))
 totalpop<-dfgroups %>% summarise(sum(Population))
@@ -424,7 +428,11 @@ gfig<-layout(gfig,title=list(
                                 ),align='left',showarrow=TRUE,x=2200,y=etarget,font=fb)) %>%
             layout(annotations=list(
               text=paste0("Data: BP World Energy Stats (Population data from World Bank)"),xanchor='left',x=100,y=60,font=list(color='white'),showarrow=FALSE)) %>%
-            layout(annotations=list(hovertext="IEA 2050 target is 2.6 times\nthis present electricity output",
+            layout(annotations=list(
+              hovertext=paste("IEA 2050 target is 2.6 times\nthis present electricity output\n",
+                              "(",comma(2.6*totalgw)," GW) ",
+                              "implying \n",comma(2.6*totalgw/(pop50/1000))," watts/person "
+              ),
               text=paste0("Current global power with\n",
               comma(popm/1000)," billion people: ",comma(totalgw)," GW"),font=list(size="12"),
               x=5500,y=300,xanchor='left',showarrow=FALSE))
