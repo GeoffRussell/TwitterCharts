@@ -48,7 +48,7 @@ p<-df %>% ggplot()+
   annotate('text',x=1000,y=1500,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=0)+
   annotate('text',x=7500,y=500,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
   scale_fill_brewer(palette="Oranges",breaks=c("North America","European Union","China","Mid East and Nth Africa","Latin America & Carribbean","India","SE Asia & Others","Sub-Saharan Africa"))+
-  labs(y="Watts (continuous power) per person",x="Population",fill="Region",title="Global Energy Shortfall (cf. Thorcon website)")
+  labs(y="Watts (continuous power) per person",x="Population",fill="Region",title="Global Electricity Shortfall (cf. Thorcon website)")
 p
 png(paste0("thorcon-pop-energy.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
 p
