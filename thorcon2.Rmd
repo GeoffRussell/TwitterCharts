@@ -413,7 +413,7 @@ gfig<-layout(gfig,title=list(
           text="<b>Global per person distribution of electricity 2020</b>",
           y=0.90,x=0.2, xanchor='left',yanchor='top',font=list(size=20)
           ),showlegend=FALSE,
-            shapes=list(x0=0,y0=0,x1=popm,y1=etarget,layer="below",
+            shapes=list(x0=0,y0=0,x1=pop50,y1=etarget,layer="below",
                         fillcolor="Khaki",type="rect",line=list(width=0)),
             xaxis=list(title="Global Population (millions)"),
             yaxis=list(title="Watts per person (continuous power)")) %>%
@@ -425,7 +425,7 @@ gfig<-layout(gfig,title=list(
           "global power required in 2050 with\n",
               comma(pop50/1000)," billion people: ",
               comma(etarget*pop50/1000)," GW"
-                                ),align='left',showarrow=TRUE,x=2200,y=etarget,font=fb)) %>%
+                                ),align='left',showarrow=TRUE,x=2800,y=etarget,font=fb)) %>%
             layout(annotations=list(
               text=paste0("Data: BP World Energy Stats (Population data from World Bank)"),xanchor='left',x=100,y=60,font=list(color='white'),showarrow=FALSE)) %>%
             layout(annotations=list(
