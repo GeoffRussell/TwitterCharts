@@ -414,15 +414,19 @@ gfig<-layout(gfig,title=list(
             xaxis=list(title="Global Population (millions)"),
             yaxis=list(title="Watts per person (continuous power)")) %>%
             layout(margin=list(t=80)) %>%
-            layout(annotations=list(text=paste0("Target average global continuous\npower ",
-                                etarget," watts per person"),x=2000,y=etarget,font=fb)) %>%
+            layout(annotations=list(
+              text=paste0("Target per person ",etarget," watts"),
+              hovertext=paste0("With target average global continuous\npower ",
+                                etarget," watts per person ...\n",
+          "global power required in 2050 with\n",
+              comma(pop50/1000)," billion people: ",
+              comma(etarget*pop50/1000)," GW"
+                                ),align='left',showarrow=TRUE,x=2200,y=etarget,font=fb)) %>%
             layout(annotations=list(
               text=paste0("Data: BP World Energy Stats (Population data from World Bank)"),xanchor='left',x=100,y=60,font=list(color='white'),showarrow=FALSE)) %>%
             layout(annotations=list(text=paste0("Current global power with\n",
               comma(popm/1000)," billion people: ",comma(totalgw)," GW"),font=list(size="12"),
-              x=5500,y=300,xanchor='left',showarrow=FALSE)) %>% layout(annotations=list(text=paste0("Global power required in 2050 with\n",
-              comma(pop50/1000)," billion people: ",
-              comma(etarget*pop50/1000)," GW"),x=5500,y=etarget-110,showarrow=FALSE,font=fw))
+              x=5500,y=300,xanchor='left',showarrow=FALSE))
             
 gfig<-gfig %>% add_trace(data=pdfgroups,type="bar",x=~x,y=~y,width=~width,text=~Region,hovertext=~str,
                        textfont=fbig,
