@@ -3,8 +3,8 @@ title: "Redo Thorcon chart"
 author: "GeoffRussell"
 date: "29/10/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ## Background
@@ -329,12 +329,12 @@ fig
 htmlwidgets::saveWidget(as_widget(fig), "thorconplot.html")
 
 ```
+## Plot by energy ranked groups
 
 Possibly a better way of dividing countries is simply ranking by electrical energy per person. Perhaps
 splitting the world into population quintiles will work. That will enable us to compare the
 electricity used by the richest (in electricity usage) 20 percent of the global population with
 the rest.
-
 
 
 ```{r}
@@ -348,11 +348,17 @@ qdfg<-dgroups %>% group_by(Quantile) %>%
   arrange(desc(PerCapEnergy)) %>% rename(Region=Quantile)
 qdfg<-bind_rows(qdfg,restOfWorld)
 dfgroups <- qdfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
+totalgw<-dfgroups %>% summarise(sum(PerCapEnergy*Population/1000))
+totalpop<-dfgroups %>% summarise(sum(Population))
+```
+
+That's got the data organised for group plots. Now to plot it, first with ggplot.
+
+
+```{r}
 qList<-unlist(dgroups$Quantile %>% unique())
 qList<-append(qList,"RestOfWorld")
 
-totalgw<-dfgroups %>% summarise(sum(PerCapEnergy*Population/1000))
-totalpop<-dfgroups %>% summarise(sum(Population))
 dfbig <- dfgroups %>% filter(Region %in% c("G1","G2","G3"))
  
 etarget<-dfgroups$PerCapEnergy[1]/2
@@ -399,12 +405,15 @@ groupCountries<-groups %>% group_by(Quantile) %>%
   mutate(str=splitter(paste(paste0(Country," ",comma(PerCapEnergy),"w"),sep=", ",collapse=", "))) %>% 
   ungroup() %>% select(Quantile,str) %>% rename(Region=Quantile) %>% unique() 
 pdfgroups<-dfgroups %>% left_join(groupCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
-  mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin)
+  mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin,ymid=y/2)
 pdfgroups$str<-ifelse(is.na(pdfgroups$str),"Many poor countries have no\nindividual data in\nthe BP World Energy Statistics\nE.g. Nigeria with over 200 million people",pdfgroups$str)
-pdfgroups<-pdfgroups %>% mutate(str=paste0("Popn: ",comma(Population),"m\n",str))
+pdfgroups<-pdfgroups %>% 
+  mutate(str=paste0("Popn: ",comma(Population),"m\n",str),GW=comma(Population*PerCapEnergy/1000))
 gfig<-plot_ly()
 fb <- list(size = 13, color = "black")
 fw <- list(size = 18, color = "grey")
+fwhite <- list(color = "white")
+fsmall <- list(color = "black",size=10)
 fbig <- list(size = 18)
 etarget=1200
 popm<-worldPop20/1e6
@@ -440,7 +449,18 @@ gfig<-layout(gfig,title=list(
 gfig<-gfig %>% add_trace(data=pdfgroups,type="bar",x=~x,y=~y,width=~width,text=~Region,hovertext=~str,
                        textfont=fbig,
                        hovertemplate="Avg w/Cap: %{y}\n%{hovertext}<extra></extra>",
-                       marker=list(color=~colr))
-gfig
+                       marker=list(color=~colr)) 
+for(i in 1:nrow(pdfgroups)) {
+    row<-pdfgroups[i,]
+    a<-0
+    f<-fsmall
+    if (i<6) { 
+      a <- -90 
+      f<-fwhite
+    }
+    gfig<-gfig %>% layout(annotations=list(x=row$x,y=row$ymid,font=f,text=paste(row$GW,"GW"),textangle=a,showarrow=FALSE))
+}
+  
+gfig 
 
 ```
