@@ -1,0 +1,433 @@
+---
+title: "Redo Thorcon chart"
+author: "GeoffRussell"
+date: "29/10/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Background
+
+Thorcon have a great chart, first version by Robert Hargraves and redone by Jack Devanney, which shows
+the various electricity inequalities between different regions.  This *markdown* file will
+do yet another version using BP World Energy Statistics 2021. Most of the code here comes from
+other analyses I've done of the BP data. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+library(readxl)
+library(plotly)
+library(ggrepel)
+library(RColorBrewer)
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+comma2<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+```
+
+First read the data. Hopefully, we can just run this script again when the next version of the BP statistics
+are released.  We use the 2020 global population figure from [Worldometers](https://www.worldometers.info/world-population/world-population-by-year/).
+
+
+```{r data}
+bpfile<-"bp-stats-review-2021-all-data.xlsx"
+s21<-excel_sheets(bpfile)
+print(s21)
+worldPop20<-7.795e9
+```
+
+## Population data
+
+We will be calculating per-capita statistics so need some population data.
+
+We use a download of the 2020 [World Bank Population data](https://datahelpdesk.worldbank.org/knowledgebase/articles/898581-api-basic-call-structures) 
+which gives population time series data upto 2019. We use a polynomial model
+to extrapolate for years after that; out to 2040. It's not the world's best population growth model, but good
+enough for our purposes.
+
+One wrinkle is that the World Bank country names don't match the BP country names. So we change
+some names. But the BP data is still messy; using categories like *Eastern Africa*, for example,
+which combine a group of countries.
+
+```{r pop}
+dfpop<-read_csv("API_SP.POP.TOTL_DS2_en_csv_v2_2252106.csv",skip=4,show_col_types=FALSE) %>% rename(Country=`Country Name`)
+dfpop$Country <- gsub("United States","US",dfpop$Country)
+dfpop$Country <- gsub("Korea, Rep.","South Korea",dfpop$Country)
+dfpop$Country <- gsub("Slovak Republic","Slovakia",dfpop$Country)
+dfpop$Country <- gsub("Egypt, Arab Rep.","Egypt",dfpop$Country)
+dfpop$Country <- gsub("Hong Kong SAR, China","China Hong Kong SAR",dfpop$Country)
+dfpop$Country <- gsub("Iran, Islamic Rep.","Iran",dfpop$Country)
+dfpop$Country <- gsub("Venezuela, RB","Venezuela",dfpop$Country)
+dfpop$Country <- gsub("Trinidad and Tobago","Trinidad & Tobago",dfpop$Country)
+```
+
+
+```{r}
+#------------------------------------------------------------------------------------------------
+# getpop returns a closure which is vectorised, we extrapolate past the last data point, 2019
+# we unname pred because we don't need names and they confuse me when looking at structures!
+#------------------------------------------------------------------------------------------------
+#----------------------------------------------------------------------
+# Remove any countries in twh for which we don't have population data
+#---------------------------------------------------------------------
+removeMissing<-function(.data,df) {
+  semi_join(.data,df %>% select(Country),by=c("Country")) 
+}
+getpop<-function(country) {
+  f<-function(yr) {
+    rp<-dfpop %>% filter(Country==country) %>% pivot_longer(names_to="year",cols="1960":"2019") %>% select(year,value)
+    m1<-lm(value~poly(as.numeric(year),2),rp)
+    df<-tibble(year=seq(1960,2040),Country=country)
+    rowp<-df %>% add_predictions(m1) %>% filter(year %in% yr) %>% mutate(Year=year,Popn=unname(pred)) %>% select(-year,-pred) 
+  }
+}
+getPopForList<-function(countries,years=seq(1975,2021)) {
+  df<-tibble()
+  for(c in countries) {
+    df<-bind_rows(df,getpop(c)(years))
+  }
+  df$Popn<-unname(df$Popn)
+  df 
+}
+getTotalTWhForList<-function(countries,years=seq(1975,2021)) {
+  df<-tibble()
+  for(c in countries) {
+    df<-bind_rows(df,(countryTWh %>% filter(Country==c)))
+  }
+  df$TWh<-unname(df$TWh)
+  df 
+}
+# Here's a couple of test calls
+tgetpop<-getpop("Australia")(1975:2000)
+tgetPopForList<-getPopForList(c("Australia","Germany","France","US"))
+mergePopData<-function(.data,countries,years=c(2021)) {
+    dfc<-getPopForList(countries,years)
+    .data %>% filter(Country %in% countries) %>% left_join(dfc)
+}
+mergeTotalTWhData<-function(.data,countries) {
+    dfe<-getTotalTWhForList(countries)
+    .data %>% filter(Country %in% countries) %>% left_join(dfe)
+}
+```
+## Get data for a sheet and filter it
+
+We now have a set of routines for reading a BP sheet and filtering it. This is all a bit
+messy because of the way BP name things.
+
+```{r }
+# plenty of data juggling due to how read_excel names its columns
+# this code will have to change in 2022!
+countryFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(!grepl("^Total ",Country)) %>%  
+    filter(!grepl("OECD",Country)) %>%  
+    filter(!grepl("European Union",Country)) %>%  
+    filter(!grepl("^of which",Country)) %>% 
+    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+}
+worldTotalFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(grepl("^Total World",Country))  %>% 
+    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+}
+getSheet<-function(sheetname,cols,label,startyear="1975",filter=countryFilter) {
+    endyear<-paste0("2020...",toString(cols-3))
+    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
+            filter(label,startyear=startyear,endyear=endyear) %>%
+            mutate(Year=as.numeric(yy)) %>% select(-yy) 
+}
+```
+
+We won't to get per capita electricity by country, but the BP data has plenty of data rows with
+country names like *Other SE Asia*, *Other South Africa*. These block up 
+countries with little electricity; e.g., most of Africa. So we will group the data into *Country*
+data and *Other* data. 
+
+We will total up the population covered by the *Country* data and then just allocate the rest of
+the global population to the *Other* data.
+
+```{r}
+countryTWh<-bind_rows(
+    getSheet("Electricity Generation ",40,'Electricity',startyear="1985"),
+) %>% filter(Year==2020) %>% select(Country,TWh)
+write_csv(countryTWh,"country-data.csv")
+countryTWh %>% summarise(s=sum(TWh))
+otherTWh <- countryTWh %>% filter(grepl("Other|Eastern Africa|Middle Africa|Central America|Western Africa",Country))
+write_csv(otherTWh,"other-data.csv")
+otherSum<-otherTWh %>% summarise(sum(TWh))
+
+# at this point countryTWh still has Other data ... so we remove all countries for which
+# we don't have data; which will hopefully only be the Other data; but we write out a file to check.
+
+countryTWh <- countryTWh %>% removeMissing(dfpop)
+write_csv(countryTWh,"country-data-stripped.csv")
+countryTotalMWhPerCap<-getPopForList(countryTWh$Country,2021) %>% left_join(countryTWh) %>%
+  mutate(totalMWhPerCap=TWh*1e12/Popn/1e6) %>% # NB this is an annual figure
+  select(Country,totalMWhPerCap)
+```
+
+The two csv files are just so we can check by eye that nothing has been missed.
+
+```{r}
+countryTWh %>% summarise(s=sum(TWh))
+```
+The `countryTWh` and `otherTWh` have the country based data and the `Other` data. 
+
+Our basic method is to place the countries in categories and allocate the `Other` data to
+a *RestOfWorld* bucket.
+
+## Group countries in regions
+
+Now we read in a table of regions which has been manually doctored to allocate countries to regions.
+The manual allocation tends to put like with like; based on electrical availability. So Australia
+is allocated to *North America* and Mexico to *South America*. The richer middle eastern countries
+are allocated to *Europe*.
+
+
+```{r}
+regions<-read_csv("regionTable.csv") %>% select(Country,Region)
+```
+
+Add in the population and region data.
+
+```{r}
+c<-countryTWh$Country
+noregion<-countryTWh %>% anti_join(regions %>% select(Country),by=c("Country"))
+dfdata<-countryTWh %>% mergePopData(c) %>% left_join(regions) %>% 
+  mutate(PerCapEnergy=TWh*1e12/Popn/24/365)
+dfdata %>% summarise(wPop=sum(Popn))
+dfg<-dfdata %>% group_by(Region) %>%
+  summarise(Population=sum(Popn)/1e6,PerCapEnergy=sum(TWh*1e12)/sum(Popn)/24/365) %>%
+  arrange(desc(PerCapEnergy))
+dfg %>% summarise(wPop=sum(Population)) 
+```
+
+At this point `dfg` is missing the *other* information.
+
+```{r}
+missingPop<-(worldPop20/1e6-as.numeric(dfg %>% summarise(sum(Population))))*1e6
+missingTWh<-as.numeric(otherSum)
+restOfWorld<-tribble(
+    ~Region,~Population,~PerCapEnergy, 
+    "RestOfWorld",missingPop/1e6,missingTWh*1e12/missingPop/24/365
+)
+```
+
+```{r}
+dfg<-bind_rows(dfg,restOfWorld)
+etarget<-780
+bigRegionList<-c("North America",
+              "Europe",
+              "China",
+              "Asia",
+              "SE Asia",
+              "South America"
+              )
+regionList<-c("North America",
+              "Europe",
+              "China",
+              "Asia",
+              "South America",
+              "SE Asia",
+              "India",
+              "RestOfWorld"
+              )
+df <- dfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
+dfepoor <- df %>% filter(!Region %in% c("North America","Europe")) 
+shortfall<-dfepoor %>% summarise(sum((etarget-PerCapEnergy)*Population/1000))
+totalgw<-df %>% summarise(sum(PerCapEnergy*Population/1000))
+dfbig <- df %>% filter(Region %in% bigRegionList)
+                                     
+dfsmall <- df %>% filter(!Region %in% bigRegionList)
+                           
+dfr<-tribble(
+  ~xmin,~xmax,~ymin,~ymax,
+   0,    worldPop20/1e6,0,etarget
+)
+p<-df %>% ggplot()+
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapEnergy))) +
+  geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
+                label=paste0(comma(PerCapEnergy*Population/1000),"GW")),data=dfbig,angle=90,size=2.3,color="white") +
+  geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
+                label=paste0(comma(PerCapEnergy*Population/1000),"GW")),data=dfsmall,size=3) +
+  geom_text(aes(x=xmin+60,y=ymax+110,label=Region,hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapEnergy),"w"),hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
+  annotate('text',x=1000,y=1500,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=0)+
+  annotate('text',x=100,y=20,label=paste0("Data: BP World Energy Statistics 2021 (World Bank Population data)"),hjust=0,vjust=0,size=2)+
+  annotate('text',x=7500,y=700,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
+  scale_fill_brewer(breaks=regionList,type="seq",palette="OrRd")+
+  labs(y="Watts (continuous power) per person",x="Population",fill="Region",title="Global Electricity Shortfall (cf. Thorcon website)")
+p
+png(paste0("thorcon-pop-energy-new.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
+p
+dev.off()
+```
+We are eventually going to need to list all the countries in each region.
+```{r}
+# this breaks of lists into lines of about 40 chars at a blank
+splitter<- function(s) {
+    gsub('(.{1,40})(\\s|$)', '\\1\n', s)
+}
+regionCountries<-regions %>% group_by(Region) %>% 
+  mutate(str=splitter(paste(Country,sep=", ",collapse=", "))) %>% 
+  ungroup() %>% select(Region,str) %>% unique()
+```
+
+```{r}
+# This builds a bunch of rectangle,
+# we don't need it because plotly allows bars of different widths, but its a very 
+# useful trick for looping through rows
+l<-list()
+l<-pdf %>% pmap(
+  function(...) {
+    c<-tibble(...)
+    l<-append(l,list(type="rect",text=c$Region,hoverinfo="text",x0=c$xmin,x1=c$xmax,
+                     y0=c$ymin,y1=c$ymax,fillcolor=c$colr,opacity=0.2,line=list(width=0)))
+  }
+)
+```
+
+Now lets try a plotly version.
+
+```{r}
+pdf<-df %>% left_join(regionCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
+  mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin)
+fig<-plot_ly()
+fb <- list(size = 13, color = "black")
+fw <- list(size = 18, color = "grey")
+fbig <- list(size = 18)
+etarget=1200
+popm<-worldPop20/1e6
+pop50<-9600
+fig<-layout(fig,title="TITLE",showlegend=FALSE,
+            shapes=list(x0=0,y0=0,x1=popm,y1=etarget,layer="below",
+                        fillcolor="Khaki",type="rect",line=list(width=0)),
+            xaxis=list(title="Global Population (millions)"),
+            yaxis=list(title="Watts per perons (continuous power)")) %>%
+            layout(annotations=list(text=paste0("Target average global continuous\npower ",
+                                etarget," watts per person"),x=2000,y=etarget,font=fb)) %>%
+            layout(annotations=list(text=paste0("Global power required in 2050 with\n",
+                                                comma(pop50/1000)," billion people: ",
+                            comma(etarget*pop50/1000)," GW"),x=5500,y=etarget-110,showarrow=FALSE,font=fw))
+            
+fig<-fig %>% add_trace(data=pdf,type="bar",x=~x,y=~y,width=~width,text=~Region,hovertext=~str,
+                       textfont=fbig,
+                       hovertemplate="W/Cap: %{y}\n%{hovertext}<extra></extra>",
+                       marker=list(color=~colr))
+fig
+htmlwidgets::saveWidget(as_widget(fig), "thorconplot.html")
+
+```
+
+Possibly a better way of dividing countries is simply ranking by electrical energy per person. Perhaps
+splitting the world into population quintiles will work. That will enable us to compare the
+electricity used by the richest (in electricity usage) 20 percent of the global population with
+the rest.
+
+
+
+```{r}
+dfdata<-dfdata %>% arrange(-PerCapEnergy)
+top15<-dfdata %>% slice(1:15)
+ndiv=7
+dgroups<-dfdata %>% mutate(Quantile=paste0("G",ntile(-PerCapEnergy,ndiv)))
+groups<-dgroups %>% select(Country,Quantile,PerCapEnergy)
+qdfg<-dgroups %>% group_by(Quantile) %>%
+  summarise(Population=sum(Popn)/1e6,PerCapEnergy=sum(TWh*1e12)/sum(Popn)/24/365) %>%
+  arrange(desc(PerCapEnergy)) %>% rename(Region=Quantile)
+qdfg<-bind_rows(qdfg,restOfWorld)
+dfgroups <- qdfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
+qList<-unlist(d$Quantile %>% unique())
+qList<-append(qList,"RestOfWorld")
+getPalette = colorRampPalette(brewer.pal(9, "OrRd"))
+
+totalgw<-dfgroups %>% summarise(sum(PerCapEnergy*Population/1000))
+totalpop<-dfgroups %>% summarise(sum(Population))
+dfbig <- dfgroups %>% filter(Region %in% c("G1","G2","G3"))
+ 
+etarget<-dfgroups$PerCapEnergy[1]/2
+dfr<-tribble(
+  ~xmin,~xmax,~ymin,~ymax,
+   0,    worldPop20/1e6,0,etarget
+)
+top15<-top15 %>% mutate(y=1550-seq(1:15)*50)
+dfepoor <- dfgroups %>% filter(!Region %in% c("G1","G2"))
+shortfall<-dfepoor %>% summarise(sum((etarget-PerCapEnergy)*Population/1000))
+p<-dfgroups %>% ggplot()+
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
+  annotate('text',x=1000,y=1400,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=1)+
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapEnergy))) +
+  annotate('text',x=7500,y=1600,label=paste0("Top 15"),hjust=1)+
+  geom_text(aes(x=7500,y=y,
+                label=paste0(Country," ",comma(floor(PerCapEnergy)),"w")),
+            hjust=1,size=3,data=top15)+
+  geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
+                label=paste0(comma(floor(PerCapEnergy*Population/1000)),
+                             "GW (",comma(ceiling(100*Population/as.numeric(totalpop))),"%Pop)")),
+            data=dfbig,angle=90,size=3,color="white") +
+  annotate('text',x=7500,y=700,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
+  geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapEnergy),"w"),hjust=0),size=2)+
+  scale_fill_manual(breaks=qList,values=rev(getPalette(ndiv+1)))+
+  labs(y="Watts (continuous power) per person",
+       x=paste0("Population (",comma(as.numeric(totalpop)),"m)"),
+       fill="Region",title="Global Electricity Shortfall (cf. Thorcon website)")
+  
+p
+png(paste0("thorcon-pop-energy-new-octile.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
+p
+dev.off()
+```
+
+This seems, dividing the world into 8 levels of electricity use, to show the inequalities
+most clearly. 
+
+Now let's try that in plotly.
+
+```{r}
+groupCountries<-groups %>% group_by(Quantile) %>% 
+  mutate(str=splitter(paste(paste0(Country," ",comma(PerCapEnergy),"w"),sep=", ",collapse=", "))) %>% 
+  ungroup() %>% select(Quantile,str) %>% rename(Region=Quantile) %>% unique() 
+pdfgroups<-dfgroups %>% left_join(groupCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
+  mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin)
+pdfgroups$str<-ifelse(is.na(pdfgroups$str),"Many poor countries have no\nindividual data in\nthe BP World Energy Statistics\nE.g. Nigeria with over 200 million people",pdfgroups$str)
+pdfgroups<-pdfgroups %>% mutate(str=paste0("Popn: ",comma(Population),"m\n",str))
+gfig<-plot_ly()
+fb <- list(size = 13, color = "black")
+fw <- list(size = 18, color = "grey")
+fbig <- list(size = 18)
+etarget=1200
+popm<-worldPop20/1e6
+pop50<-9600
+gfig<-layout(gfig,title=list(
+          text="<b>Global per person distribution of electricity 2020</b>",
+          y=0.90,x=0.2, xanchor='left',yanchor='top',font=list(size=20)
+          ),showlegend=FALSE,
+            shapes=list(x0=0,y0=0,x1=popm,y1=etarget,layer="below",
+                        fillcolor="Khaki",type="rect",line=list(width=0)),
+            xaxis=list(title="Global Population (millions)"),
+            yaxis=list(title="Watts per person (continuous power)")) %>%
+            layout(margin=list(t=80)) %>%
+            layout(annotations=list(text=paste0("Target average global continuous\npower ",
+                                etarget," watts per person"),x=2000,y=etarget,font=fb)) %>%
+            layout(annotations=list(
+              text=paste0("Data: BP World Energy Stats (Population data from World Bank)"),xanchor='left',x=100,y=60,font=list(color='white'),showarrow=FALSE)) %>%
+            layout(annotations=list(text=paste0("Current global power with\n",
+              comma(popm/1000)," billion people: ",comma(totalgw)," GW"),font=list(size="12"),
+              x=5500,y=300,xanchor='left',showarrow=FALSE)) %>% layout(annotations=list(text=paste0("Global power required in 2050 with\n",
+              comma(pop50/1000)," billion people: ",
+              comma(etarget*pop50/1000)," GW"),x=5500,y=etarget-110,showarrow=FALSE,font=fw))
+            
+gfig<-gfig %>% add_trace(data=pdfgroups,type="bar",x=~x,y=~y,width=~width,text=~Region,hovertext=~str,
+                       textfont=fbig,
+                       hovertemplate="Avg w/Cap: %{y}\n%{hovertext}<extra></extra>",
+                       marker=list(color=~colr))
+gfig
+
+```
