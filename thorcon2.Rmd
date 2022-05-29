@@ -45,6 +45,15 @@ getPalette = colorRampPalette(brewer.pal(9, "OrRd"))
 splitter<- function(s) {
     gsub('(.{1,40})(\\s|$)', '\\1\n', s)
 }
+getAfricaList<-function() {
+  dfa<-read_csv("africa.csv") %>% select(Country,Population,InBP)
+  dfa
+}
+makeString <-function(.data) {
+  (.data %>% mutate(str=splitter(paste(paste0(Country," ",comma(Population/1e6),"m"),sep=", ",collapse=", "))))$str[1]
+}
+getAfricaList() %>% makeString
+getAfricaList() %>% summarise(sum(Population))
 ```
 
 ## Population data
@@ -207,11 +216,11 @@ Add in the population and region data.
 c<-countryTWh$Country
 noregion<-countryTWh %>% anti_join(regions %>% select(Country),by=c("Country"))
 dfdata<-countryTWh %>% mergePopData(c) %>% left_join(regions) %>% 
-  mutate(PerCapEnergy=TWh*1e12/Popn/24/365)
+  mutate(PerCapPower=TWh*1e12/Popn/24/365)
 dfdata %>% summarise(wPop=sum(Popn))
 dfg<-dfdata %>% group_by(Region) %>%
-  summarise(Population=sum(Popn)/1e6,PerCapEnergy=sum(TWh*1e12)/sum(Popn)/24/365) %>%
-  arrange(desc(PerCapEnergy))
+  summarise(Population=sum(Popn)/1e6,PerCapPower=sum(TWh*1e12)/sum(Popn)/24/365) %>%
+  arrange(desc(PerCapPower))
 dfg %>% summarise(wPop=sum(Population)) 
 ```
 
@@ -221,9 +230,10 @@ At this point `dfg` is missing the *other* information.
 missingPop<-(worldPop20/1e6-as.numeric(dfg %>% summarise(sum(Population))))*1e6
 missingTWh<-as.numeric(otherSum)
 restOfWorld<-tribble(
-    ~Region,~Population,~PerCapEnergy, 
+    ~Region,~Population,~PerCapPower, 
     "RestOfWorld",missingPop/1e6,missingTWh*1e12/missingPop/24/365
 )
+write_csv(restOfWorld,"RestOfWorld.csv")
 ```
 
 ```{r}
@@ -245,10 +255,10 @@ regionList<-c("North America",
               "India",
               "RestOfWorld"
               )
-df <- dfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
+df <- dfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapPower) 
 dfepoor <- df %>% filter(!Region %in% c("North America","Europe")) 
-shortfall<-dfepoor %>% summarise(sum((etarget-PerCapEnergy)*Population/1000))
-totalgw<-df %>% summarise(sum(PerCapEnergy*Population/1000))
+shortfall<-dfepoor %>% summarise(sum((etarget-PerCapPower)*Population/1000))
+totalgw<-df %>% summarise(sum(PerCapPower*Population/1000))
 dfbig <- df %>% filter(Region %in% bigRegionList)
                                      
 dfsmall <- df %>% filter(!Region %in% bigRegionList)
@@ -259,13 +269,13 @@ dfr<-tribble(
 )
 p<-df %>% ggplot()+
   geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
-  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapEnergy))) +
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapPower))) +
   geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
-                label=paste0(comma(PerCapEnergy*Population/1000),"GW")),data=dfbig,angle=90,size=2.3,color="white") +
+                label=paste0(comma(PerCapPower*Population/1000),"GW")),data=dfbig,angle=90,size=2.3,color="white") +
   geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
-                label=paste0(comma(PerCapEnergy*Population/1000),"GW")),data=dfsmall,size=3) +
+                label=paste0(comma(PerCapPower*Population/1000),"GW")),data=dfsmall,size=3) +
   geom_text(aes(x=xmin+60,y=ymax+110,label=Region,hjust=0),size=2)+
-  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapEnergy),"w"),hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapPower),"w"),hjust=0),size=2)+
   geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
   annotate('text',x=1000,y=1500,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=0)+
   annotate('text',x=100,y=20,label=paste0("Data: BP World Energy Statistics 2021 (World Bank Population data)"),hjust=0,vjust=0,size=2)+
@@ -338,17 +348,18 @@ the rest.
 
 
 ```{r}
-dfdata<-dfdata %>% arrange(-PerCapEnergy)
+dfdata<-dfdata %>% arrange(-PerCapPower)
+write_csv(dfdata,"PerCapPowerByCountry.csv")
 top15<-dfdata %>% slice(1:15)
 ndiv=7
-dgroups<-dfdata %>% mutate(Quantile=paste0("G",ntile(-PerCapEnergy,ndiv)))
-groups<-dgroups %>% select(Country,Quantile,PerCapEnergy)
+dgroups<-dfdata %>% mutate(Quantile=paste0("G",ntile(-PerCapPower,ndiv)))
+groups<-dgroups %>% select(Country,Quantile,PerCapPower)
 qdfg<-dgroups %>% group_by(Quantile) %>%
-  summarise(Population=sum(Popn)/1e6,PerCapEnergy=sum(TWh*1e12)/sum(Popn)/24/365) %>%
-  arrange(desc(PerCapEnergy)) %>% rename(Region=Quantile)
+  summarise(Population=sum(Popn)/1e6,PerCapPower=sum(TWh*1e12)/sum(Popn)/24/365) %>%
+  arrange(desc(PerCapPower)) %>% rename(Region=Quantile)
 qdfg<-bind_rows(qdfg,restOfWorld)
-dfgroups <- qdfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapEnergy) 
-totalgw<-dfgroups %>% summarise(sum(PerCapEnergy*Population/1000))
+dfgroups <- qdfg %>% mutate(xmin=cumsum(Population)-Population,xmax=xmin+Population,ymin=0,ymax=PerCapPower) 
+totalgw<-dfgroups %>% summarise(sum(PerCapPower*Population/1000))
 totalpop<-dfgroups %>% summarise(sum(Population))
 ```
 
@@ -361,29 +372,29 @@ qList<-append(qList,"RestOfWorld")
 
 dfbig <- dfgroups %>% filter(Region %in% c("G1","G2","G3"))
  
-etarget<-dfgroups$PerCapEnergy[1]/2
+etarget<-dfgroups$PerCapPower[1]/2
 dfr<-tribble(
   ~xmin,~xmax,~ymin,~ymax,
    0,    worldPop20/1e6,0,etarget
 )
 top15<-top15 %>% mutate(y=1550-seq(1:15)*50)
 dfepoor <- dfgroups %>% filter(!Region %in% c("G1","G2"))
-shortfall<-dfepoor %>% summarise(sum((etarget-PerCapEnergy)*Population/1000))
+shortfall<-dfepoor %>% summarise(sum((etarget-PerCapPower)*Population/1000))
 p<-dfgroups %>% ggplot()+
   geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
   annotate('text',x=1000,y=1400,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=1)+
-  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapEnergy))) +
+  geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapPower))) +
   annotate('text',x=7500,y=1600,label=paste0("Top 15"),hjust=1)+
   geom_text(aes(x=7500,y=y,
-                label=paste0(Country," ",comma(floor(PerCapEnergy)),"w")),
+                label=paste0(Country," ",comma(floor(PerCapPower)),"w")),
             hjust=1,size=3,data=top15)+
   geom_text(aes(x=xmin+(xmax-xmin)/2,y=ymin+(ymax-ymin)/2,
-                label=paste0(comma(floor(PerCapEnergy*Population/1000)),
+                label=paste0(comma(floor(PerCapPower*Population/1000)),
                              "GW (",comma(ceiling(100*Population/as.numeric(totalpop))),"%Pop)")),
             data=dfbig,angle=90,size=3,color="white") +
   annotate('text',x=7500,y=700,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
   geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
-  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapEnergy),"w"),hjust=0),size=2)+
+  geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapPower),"w"),hjust=0),size=2)+
   scale_fill_manual(breaks=qList,values=rev(getPalette(ndiv+1)))+
   labs(y="Watts (continuous power) per person",
        x=paste0("Population (",comma(as.numeric(totalpop)),"m)"),
@@ -402,13 +413,13 @@ Now let's try that in plotly.
 
 ```{r}
 groupCountries<-groups %>% group_by(Quantile) %>% 
-  mutate(str=splitter(paste(paste0(Country," ",comma(PerCapEnergy),"w"),sep=", ",collapse=", "))) %>% 
+  mutate(str=splitter(paste(paste0(Country," ",comma(PerCapPower),"w"),sep=", ",collapse=", "))) %>% 
   ungroup() %>% select(Quantile,str) %>% rename(Region=Quantile) %>% unique() 
 pdfgroups<-dfgroups %>% left_join(groupCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
   mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin,ymid=y/2)
 pdfgroups$str<-ifelse(is.na(pdfgroups$str),"Many poor countries have no\nindividual data in\nthe BP World Energy Statistics\nE.g. Nigeria with over 200 million people",pdfgroups$str)
 pdfgroups<-pdfgroups %>% 
-  mutate(str=paste0("Popn: ",comma(Population),"m\n",str),GW=comma(Population*PerCapEnergy/1000))
+  mutate(str=paste0("Popn: ",comma(Population),"m\n",str),GW=comma(Population*PerCapPower/1000))
 gfig<-plot_ly()
 fb <- list(size = 13, color = "black")
 fw <- list(size = 18, color = "grey")
@@ -462,5 +473,6 @@ for(i in 1:nrow(pdfgroups)) {
 }
   
 gfig 
+htmlwidgets::saveWidget(as_widget(gfig), "thorconplot-bygroup.html")
 
 ```
