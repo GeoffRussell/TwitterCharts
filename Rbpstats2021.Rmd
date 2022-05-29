@@ -126,6 +126,13 @@ worldTotalFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
     select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
     pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
 }
+# don't know how to do this ... sub china
+worldTotalFilterSubChina<-function(.data,name,startyear="1975",endyear="2020...57") {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(Country %in% c("Total World","China")) %>% 
+    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+}
 getSheet<-function(sheetname,cols,label,startyear="1975",filter=countryFilter) {
     endyear<-paste0("2020...",toString(cols-3))
     read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
@@ -195,28 +202,73 @@ calcAndClean<-function(.data) {
     mutate(percentGrowth=ifelse(abs(percentGrowth)>95,0,d1*100)) %>%
     select(-D1,-d1)  
 }
+# world totals without china
+xxxx<-getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) %>% mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>% select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd) 
+```
+
+```{r}
+
+
+stwsubch<-bind_rows(
+    getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) 
+    %>% mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>% select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd),
+    getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
+    getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
+) %>% calcAndClean()
+# world totals 
 stwh<-bind_rows(
     getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilter),
     getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
     getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
 ) %>% calcAndClean()
-wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type),size=1)+
+calcGrowth<-function(.data) {
+  .data %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type),size=2)+
   labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
   annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x=element_text(size=20,face="bold"),
+        plot.title=element_text(size=20,face="bold"),
+        axis.text.y=element_text(size=20,face="bold"),
+        legend.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=20,face="bold")
+        )+xlim(c(2000,2020))
+}
+pg<-calcGrowth(stwh)
+pg
+pgc<-calcGrowth(stwsubch)
+pgc
+
+wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type),size=2)+
+  labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
+  annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x=element_text(size=20,face="bold"),
+        plot.title=element_text(size=20,face="bold"),
+        axis.text.y=element_text(size=20,face="bold"),
+        legend.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=20,face="bold")
+        )+
   xlim(c(2000,2020))
 wshGrowth
 
 wshGrowthRate<-stwh %>% ggplot() + 
-  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),size=1)+
+  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),size=2)+
   labs(title="Percentage growth rates of hydro, solar and wind",y="Percentage growth")+
-  annotate('text',x=2005,y=10,label="Data: BP world energy stats 2021",size=2)+
+  annotate('text',x=2005,y=10,label="Data: BP world energy stats 2021",size=3)+
+  theme(axis.title=element_text(size=20,face="bold"),
+        axis.text.x=element_text(size=20,face="bold"),
+        plot.title=element_text(size=20,face="bold"),
+        axis.text.y=element_text(size=20,face="bold"),
+        legend.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=20,face="bold")
+        )+
   xlim(c(2000,2020))
 wshGrowthRate
 
 png(paste0("wsh-growth-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
 print(wshGrowth)
 dev.off()
-png(paste0("wsh-growthrate-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+png(paste0("wsh-growthrate-2000-2020.png"),width=2600,height=1300,units="px",res=200,type="cairo-png")
 print(wshGrowthRate)
 dev.off()
 
@@ -298,7 +350,9 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
       scale_shape_manual(values=c(19,8,1),labels=c("2050 Target", "Current Clean", "Current MWh/Cap"
                                                    ))+
       guides(shape=guide_legend("Targets"))
+      suf=""
       if (length(rmTypes)>2) {
+        suf=""
         p<-p+ geom_rect(aes(ymin=cleanMWhPerCap,ymax=totalMWhPerCap*2,
               xmax=as.numeric(factor(reorder(Key,Max)))+0.4,
               xmin=as.numeric(factor(reorder(Key,Max)))-0.4),alpha=0.3,fill="forestgreen") +
@@ -308,7 +362,7 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
     
       t<-fulldfEx %>% select(Type) %>% unique() %>% filter(!Type %in% rmTypes) %>% map(~substr(.,1,1))
       t<-paste(unlist(t),sep="",collapse="")
-      png(paste0("rollout-top",ntop,"-over-",rp,"-years-",t,".png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+      png(paste0("rollout-top",ntop,"-over-",rp,"-years-",t,".png"),width=2200,height=1300,units="px",res=300,type="cairo-png")
       print(p)
       dev.off()
       print(p)
@@ -316,6 +370,7 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
 makeRollingGraph(7,ntop=20)
 makeRollingGraph(15,ntop=30)
 makeRollingGraph(20,ntop=20)
+makeRollingGraph(20,ntop=20,rmTypes=c("Gas","Coal","SolarPlusWindPlusBio","Clean","Oil"))
 makeRollingGraph(10,ntop=30)
 makeRollingGraph(10,ntop=30,rmTypes=c("Gas","Coal","SolarPlusWindPlusBio","Clean","Oil"))
 ```
