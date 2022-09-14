@@ -1,0 +1,42 @@
+---
+title: "china-reactor-plot"
+author: "GeoffRussell"
+date: "8/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Data 
+
+```{r cars}
+comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+FukuDate<-ymd("2011-03-11")
+bungalaE<-570e9
+df<-read_csv("china-reactor-times.csv") %>% 
+  mutate(NameConnection=paste0(Name,' ',Connection)) %>%
+  mutate(InFuku=(FukuDate<Connection & FukuDate>StartCon),
+         nBun=MWe*1e6*24*365*0.89/bungalaE,
+         fac=19/(Dur*12/nBun))
+median(df$Dur,na.rm=TRUE)
+mean(df$Dur,na.rm=TRUE)
+df %>% filter(!is.na(Dur)) %>% summarise(n=n())
+p<-df %>% filter(!is.na(Dur)) %>% ggplot() +
+  geom_col(aes(reorder(NameConnection,Connection),Dur,fill=MWe))+
+  geom_text(aes(reorder(NameConnection,Connection),Dur+0.1,
+                label=paste0("(",comma(nBun),':',comma(fac),")"),hjust=0),size=1.7)+
+  coord_flip()+
+  annotate("text",x=4,y=10,hjust=1,label="Mean 5.9 years")+
+  annotate("text",x=5.5,y=10,hjust=1,label="Median 5.6 years")+
+  annotate("text",x=7,y=10,hjust=1,label="Data: IAEA PRIS")+
+  annotate("text",x=18,y=10,hjust=1,size=2,label="(n:r)\nn=number of Bungala\nsolar farms (570 GWh/year)\nr=nuclear build speed\ncompared to Bungala\ne.g, 2=double, 3=triple")+
+  labs(title="Chinese nuclear reactor construction times",y="Years to grid connection",x="")
+p
+png("china-build-times.png",width=2000,height=2000,units="px",res=300,type="cairo-png")
+p
+dev.off()
+```
+

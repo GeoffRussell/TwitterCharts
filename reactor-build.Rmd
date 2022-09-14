@@ -1,0 +1,116 @@
+---
+title: "reactor-build"
+author: "GeoffRussell"
+date: "8/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(RSelenium)
+library(stringr)
+library(lubridate)
+# Version 103.0.5060.134 (Official Build) (64-bit)
+rd<-rsDriver(browser="chrome",chromever="103.0.5060.134",version="3.141.59")
+```
+
+## Careful 
+
+This program runs by spinning up a server to scrape some web pages, the result is
+now in "china-reactor-times.csv".
+
+DONT USE WITHOUT CHECKING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+```{r}
+remDr<-rd[["client"]]
+url1<-"https://www.world-nuclear.org/reactor/default.aspx/"
+getStart<-function(vec) {
+  ix<-1
+  vecout<-vector(length=length(vec))
+  for (n in vec) {
+    n<-str_replace_all(n," ","%20")
+    remDr$navigate(paste0(url1,n))
+    p<-read_html(remDr$getPageSource()[[1]])
+    table<-p %>% html_nodes("table") %>% html_text()
+    dt<-str_match(table[2],"TimelineConstruction Start(.*?\\d\\d\\d\\d)")
+    print(dt)
+    vecout[ix]<-dt[2]
+    ix<-ix+1
+  }
+  vecout
+}
+#vv<-getStart(c("FUQING-2","FUQING-1","FUQING-3"))
+```
+
+```{r}
+dff<-read_csv("usa-reactors.csv")
+dff2<-dff %>% mutate(Start=getStart(Name))
+dff3<-dff2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(dff3,"usa-reactors-mod.csv")
+```
+
+```{r}
+dff<-read_csv("french-reactors.csv")
+dff2<-dff %>% mutate(Start=getStart(Name))
+dff3<-dff2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(dff3,"french-reactors-mod.csv")
+```
+
+```{r}
+df<-read_csv("china-reactors.csv")
+df2<-df %>% mutate(Start=getStart(Name))
+df3<-df2 %>% mutate('Build Start'=parse_date(Start,format="%d %B %Y"))
+```
+
+```{r}
+#dfj<-read_csv("japan-reactors.csv")
+#df2<-dfj %>% mutate(Start=getStart(Name))
+df3<-df2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(df3,"japan-reactors-mod.csv")
+#df3<-df2 %>% mutate('Build Start'=parse_date(Start,format="%d %B %Y"))
+```
+```{r}
+df3<-df2 %>% mutate('Build Start'=parse_date(Start,format="%d %B %Y"))
+problems()
+```
+```{r}
+library(lubridate)
+write_csv(df2,"cccc.csv")
+dfx<-read_csv("cccc.csv") %>% 
+  mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  select(-Start,-Construction) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(dfx,"output.csv")
+```
+```
+nm=0
+for(r in df$Name) {
+  n<-str_replace_all(r," ","%20")
+  cat(n)
+  nm=nm+1
+  remDr$navigate(paste0(url1,n))
+  p<-read_html(remDr$getPageSource()[[1]])
+  table<-p %>% html_nodes("table") %>% html_text()
+  print(table)
+  if (nm>3) {
+    break
+  }
+}
+```
+
+```{r}
+
+remDr$navigate("https://www.world-nuclear.org/reactor/default.aspx/FUQING-1")
+p<-read_html(remDr$getPageSource()[[1]])
+table<-p %>% html_nodes("table") %>% html_text()
+print(table)
+
+df<-read_csv("china-reactors.csv")
+#url<-"https://www.world-nuclear.org/reactor/default.aspx/FUQING-3"
+```

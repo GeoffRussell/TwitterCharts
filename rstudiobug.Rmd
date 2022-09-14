@@ -1,11 +1,11 @@
 ---
-title: "purrr-demo"
+title: "rstudiobug"
 author: "GeoffRussell"
 date: "10/15/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r}
 library(tidyverse)
 df<-read_csv("Country,Year,Type,TWh,MWhPerCap
 Canada,1980,XXX,6.808,0.261
@@ -20,7 +20,5 @@ France,1982,SSSS,6.808,2.261
 France,1983,SSSS,6.808,3.861
 ")
 ndf<-df %>% group_by(Country,Type) %>% nest()
-xx<-ndf %>% arrange(Country) %>% ungroup() %>% dplyr::slice(1:2)
-
 ```
 

@@ -1,0 +1,25 @@
+---
+title: "rowoperations"
+author: "GeoffRussell"
+date: "5/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+df<-read_csv("Country,Fuel,2019,2020,2021
+First,Coal,3,19,20
+First,Solar,3,19,20
+Second,Coal,3,19,20
+Second,Solar,3,19,20
+Third,Coal,17,2,2
+Third,Solar,17,2,8
+World,Coal,23,40,42
+World,Solar,23,40,48")
+df[8,3:5]-df[1,3:5]
+```
+

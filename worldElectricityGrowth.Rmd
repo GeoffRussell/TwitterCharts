@@ -1,0 +1,77 @@
+---
+title: "worldElectricityGrowth"
+author: "GeoffRussell"
+date: "8/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+## Data 
+
+```{r data}
+dfpop<-readRDS("worldBankPopulation.RDS")
+bpfile<-"bp-stats-review-2022-all-data.xlsx"
+s21<-excel_sheets(bpfile)
+print(s21)
+```
+```{r}
+f<-function(.data,name) {
+  rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+    filter(grepl("^Total World",Country)) %>%
+    select(Country,'Type','1965':'2021...58') %>% rename('2021'=`2021...58`) %>% 
+    pivot_longer('1965':'2021',names_to="yy",values_to="TWh") #%>% filter(!is.na(TWh))
+}
+getSheet<-function(sheetname,cols,label) {
+    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>% f(label) 
+}
+```
+
+```{r}
+solartwh<-getSheet("Solar Generation - TWh",61,'Solar')
+windtwh<-getSheet("Wind Generation - TWh",61,'Wind')
+nucleartwh<-getSheet("Nuclear Generation - TWh",61,'Nuclear')
+wpop<-dfpop %>% filter(country.id=="1W")
+world<-bind_rows(solartwh,nucleartwh,windtwh) %>% 
+  mutate(year=as.numeric(yy)) %>%
+  left_join(wpop,by=c("year"="year")) %>% select(Type,year,TWh,population)
+world %>% ggplot() + geom_line(aes(year,TWh,group=Type,color=Type))
+world %>% ggplot() + geom_line(aes(year,TWh*1e12/population,group=Type,color=Type))
+wsize=10
+doplot<-function(wsize) {
+    w<-world %>% 
+    pivot_wider(names_from=Type,values_from=TWh) %>%
+      mutate(WPS=Wind+Solar,
+         WindInc=(Wind-lag(Wind,wsize,default=0)),
+         WindPlusSolarInc=(WPS-lag(WPS,wsize,default=0)),
+         SolarInc=(Solar-lag(Solar,wsize,default=0)),
+         NuclearInc=(Nuclear-lag(Nuclear,wsize,default=0))
+      ) 
+
+      wdfgrowth<-w %>% select(year,population,WindPlusSolarInc,NuclearInc) %>% 
+        pivot_longer(names_to="Type",values_to="Wh",cols=c(WindPlusSolarInc,NuclearInc))
+
+    p<-wdfgrowth %>% ggplot() + geom_line(aes(year,Wh*1e12/population/1e3,group=Type,color=Type))+
+      annotate("text",x=1980,y=30,label="Data: BP World Energy Stats 2022",size=4) +
+      labs(x="Year",y="kWh/person",title=paste0("Global electricity additions over ",wsize," year period"))
+    print(p)
+    png(paste0("World-PerCap-Electricity-Increments-",wsize,".png"),width=2000,height=1200,units="px",res=300,type="cairo-png")
+    print(p)
+    dev.off()
+}
+doplot(10)
+doplot(20)
+```
+
+```{r}
+
+wdf<-w %>% select(year,population,WPS,Nuclear) %>% 
+  pivot_longer(names_to="Type",values_to="TWh",cols=c(WPS,Nuclear))
+
+wdf %>% ggplot() + geom_line(aes(year,TWh*1e12/population,group=Type,color=Type))
+```
+

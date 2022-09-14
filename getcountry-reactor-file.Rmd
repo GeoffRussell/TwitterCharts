@@ -1,0 +1,54 @@
+---
+title: "getcountry-reactorfile"
+author: "GeoffRussell"
+date: "8/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(lubridate)
+dfc<-read_csv("country-reactors.csv")
+```
+
+## Data 
+
+```{r test}
+url<-"https://pris.iaea.org/PRIS/CountryStatistics/CountryDetails.aspx?current="
+xxx<-tibble()
+
+getdata<-function(vec) {
+  ix=1
+  vout<-vector(length=length(vec))
+  for(code in vec) {
+    u<-paste0(url,code)
+    dl<-read_html(u)
+    tbl<-(dl %>% html_elements(".tablesorter") %>% html_table())[[1]]
+
+    tblout<-tbl %>% select(Cap=starts_with("Gross"),Name,Type,Status,Location,Ref=starts_with("Ref"),Connect=starts_with("First")) %>% mutate(DateOn=ymd(Connect))
+    tblout$Country=code
+    write_csv(tblout,paste0("reactors-all-",code,".csv"))
+    if (ix==1) {
+      write_csv(tblout,"reactors-all.csv")
+    }
+    else {
+      write_csv(tblout,"reactors-all.csv",append=TRUE)
+    }
+    ix=ix+1
+  }
+}
+getdata(dfc$Code)
+```
+
+```{r}
+length(dfc$Code)
+sort(dfc$Code)
+dl<-read_html("https://pris.iaea.org/PRIS/CountryStatistics/CountryDetails.aspx?current=CA")
+tbl<-(dl %>% html_elements(".tablesorter") %>% html_table())[[1]]
+
+tbl %>% select(Cap=starts_with("Gross"),Name,Type,Status,Location,Ref=starts_with("Ref"),Connect=starts_with("First")) %>% mutate(DateOn=ymd(Connect))
+
+```
+

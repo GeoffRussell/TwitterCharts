@@ -1,0 +1,28 @@
+---
+title: "japan-crc"
+author: "GeoffRussell"
+date: "8/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## CRC in Japan 
+
+```{r cars}
+inc<-(148000-20000)/45
+years<-seq(1975,2020)
+cases<-20000+(years-1975)*inc
+cases
+hcases2020<-20000*1.15
+hinc<-(hcases2020-20000)/45
+hcases<-20000+(years-1975)*hinc
+hcases
+diff<-cases-hcases
+since1986<-sum(diff[11:46])
+cat("Additional cases of bowel cancer in Japan: ",since1986)
+```
+

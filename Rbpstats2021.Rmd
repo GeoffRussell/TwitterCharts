@@ -203,15 +203,33 @@ calcAndClean<-function(.data) {
     select(-D1,-d1)  
 }
 # world totals without china
-xxxx<-getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) %>% mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>% select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd) 
+# xxxx<-getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) %>%
+#      mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>% 
+#       select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd) 
 ```
 
 ```{r}
+selectedClist=c("Total Europe","Germany","Denmark","Sweden","Australia","Spain")
+selectedLabel="EuDeuDenSweAusSpa"
+makeFilter<-function(cl) {
+       function(.data,name,startyear="1975",CL=cl,endyear="2020...57") {
+        rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
+        filter(Country %in% CL) %>% slice(1:84) %>% 
+        select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
+        pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+       }
+}
+selectedFilter<-makeFilter(selectedClist)
 
-
+stwselected<-bind_rows(
+    getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=selectedFilter),
+    getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=selectedFilter),
+    getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=selectedFilter)
+) %>% calcAndClean()
 stwsubch<-bind_rows(
-    getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) 
-    %>% mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>% select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd),
+    getSheet("Solar Generation - TWh",60,'Solar',startyear="1998",filter=worldTotalFilterSubChina) %>% 
+      mutate(dd=TWh-lag(TWh,23)) %>% filter(Country=="Total World") %>%
+      select(Country,Type,Year,dd) %>% mutate(Country="WorldSubChina",TWh=dd) %>% select(-dd),
     getSheet("Wind Generation - TWh",60,'Wind',startyear="1998",filter=worldTotalFilter),
     getSheet("Hydro Generation - TWh",60,'Hydro',startyear="1998",filter=worldTotalFilter)
 ) %>% calcAndClean()
@@ -233,25 +251,22 @@ calcGrowth<-function(.data) {
         legend.text=element_text(size=20,face="bold")
         )+xlim(c(2000,2020))
 }
-pg<-calcGrowth(stwh)
-pg
-pgc<-calcGrowth(stwsubch)
-pgc
-
-wshGrowth<-stwh %>% ggplot() + geom_line(aes(x=Year,y=TWh,color=Type,group=Type),size=2)+
-  labs(title="Growth of hydro, solar and wind",y="Terawatt-hours")+
-  annotate('text',x=2000,y=300,hjust=0,label="Data: BP world energy stats 2021",size=3)+
-  theme(axis.title=element_text(size=20,face="bold"),
-        axis.text.x=element_text(size=20,face="bold"),
-        plot.title=element_text(size=20,face="bold"),
-        axis.text.y=element_text(size=20,face="bold"),
-        legend.title=element_text(size=20,face="bold"),
-        legend.text=element_text(size=20,face="bold")
+calcGrowthRatePanel<-function(.data) {
+  .data %>% ggplot() + 
+  geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),size=0.5)+
+    facet_wrap(Country~.)+
+  labs(title="Percentage growth rates of hydro, solar and wind (Data:BP 2021)",y="Percentage growth")+
+  theme(axis.title=element_text(size=4,face="bold"),
+        axis.text.x=element_text(size=4),
+        plot.title=element_text(size=4),
+        axis.text.y=element_text(size=4),
+        legend.title=element_text(size=4),
+        legend.text=element_text(size=4)
         )+
   xlim(c(2000,2020))
-wshGrowth
-
-wshGrowthRate<-stwh %>% ggplot() + 
+}
+calcGrowthRate<-function(.data) {
+  .data %>% ggplot() + 
   geom_line(aes(x=Year,y=percentGrowth,color=Type,group=Type),size=2)+
   labs(title="Percentage growth rates of hydro, solar and wind",y="Percentage growth")+
   annotate('text',x=2005,y=10,label="Data: BP world energy stats 2021",size=3)+
@@ -263,7 +278,22 @@ wshGrowthRate<-stwh %>% ggplot() +
         legend.text=element_text(size=20,face="bold")
         )+
   xlim(c(2000,2020))
+}
+wshGrowth<-calcGrowth(stwh)
+
+sgr<-calcGrowthRatePanel(stwselected)
+sgr
+png(paste0("selectedCompoundGrowthRates-",selectedLabel,".png"),width=1200,height=1200,units="px",res=300,type="cairo-png")
+sgr
+dev.off()
+
+wshGrowthRate<-calcGrowthRate(stwh)
+
 wshGrowthRate
+
+# and without china
+wgrsubc<-calcGrowthRate(stwsubch)
+wgrsubc
 
 png(paste0("wsh-growth-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
 print(wshGrowth)

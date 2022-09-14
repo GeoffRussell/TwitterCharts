@@ -1,0 +1,42 @@
+---
+title: "german-gas"
+author: "GeoffRussell"
+date: "8/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Germany consumes about 90 bcm of natural gas per year.
+
+Current price as of [August 24](https://ycharts.com/indicators/europe_natural_gas_price) $34/mmbtu
+
+To convert the price for 1 mmbtu to 1 bcm, multiply by 36.7 million.
+
+https://www.hebrewenergy.com/energy-conversion-table-conversion-calculator-energy-calculator-one-bcm-of-natural-gas-one-billion-cubic-meters-of-gas-convert-1-bcm-of-gas-conversion-of-gas
+
+Germany aims to cut gas by 15 percent between August '22 and March 23.
+https://www.imf.org/en/News/Articles/2022/08/11/CF-Germany-on-track-to-meet-gas-saving-target
+
+Gazprom still shipping 40 mcm per day.
+https://www.theguardian.com/world/2022/jul/21/how-reliant-is-germany-and-europe-russian-gas-nord-stream
+
+```{r}
+bcmperyear<-90   # bcm
+bcmpermonth<-bcmperyear/12
+dollpermonth<-bcmpermonth*34*36.7e6
+billionpermonth<-dollpermonth/1e9
+
+dailyRussianGas<-40  # mcm
+dailycost<-dailyRussianGas*36e6/1e3
+
+normaldailyRussianGas<-170
+normaldailycost<-normaldailyRussianGas*36e6/1e3
+normaldailycost*365/1e9
+
+
+normalRussianGas<-170e6*365/(bcmperyear*1e9)
+```
+

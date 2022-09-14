@@ -1,0 +1,36 @@
+---
+title: "rate-metrics"
+author: "GeoffRussell"
+date: "8/17/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+comma<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+```
+
+```{r cars}
+pop<-c(1e6,0.3e6,30e6)
+tpop<-sum(pop)
+whpercap<-c(10e6,40e6,0.5e6)
+twh<-sum(whpercap*pop)
+tpop<-sum(pop)
+gwhpercap<-twh/tpop
+
+calczero<-function(ipc) {
+  ginc<-sum(ipc*pop)/tpop
+  cat("MWh per country: ",paste(comma(whpercap/1e6*pop),sep=",")," MWh\n")
+  cat("Global inc per person: ",paste(comma(ginc/1e6),sep=",")," MWh\n")
+  z<-whpercap/ipc
+  cat("Years to zero: ",paste(comma(z),sep=",")," Years\n")
+}
+
+calczero(c(5e6,20e6,0.25e6))
+calczero(c(2e6,2e6,2e6))
+
+
+
+
+```

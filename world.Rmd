@@ -1,0 +1,67 @@
+---
+title: "nsw"
+author: "GeoffRussell"
+date: "12/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+df<-read_csv("world.csv")
+p<-df %>% filter(Type!="Fossil"&Technology!="Hydro") %>%
+  ggplot(aes(x=Technology,y=`Terawatt-hours`,fill=Type))+geom_col()+
+  labs(x="",title="Global non-hydro clean energy 2021")+coord_flip()+
+  annotate('text',x=0.8,y=100,label="Data: BP World Energy Statistics 2022",hjust=0)+
+  theme(axis.title=element_text(size=20,face="bold"),legend.position="none",
+  axis.text.x=element_text(size=12,face="bold"),
+  axis.title.x=element_text(size=12,face="bold"),
+  axis.text.y=element_text(size=12,face="bold"))
+
+p
+png(paste0("non-hydro-renewables.png"),width=1400,height=700,units="px",res=200,type="cairo-png")
+p
+dev.off()
+
+q<-df %>% filter(Type!="Fossil"&Technology!="Wind+Solar") %>%
+  ggplot(aes(x=Technology,y=`Employment(Power)`/`Terawatt-hours`,fill=Type))+geom_col()+
+  labs(x="",y="People per TWh",title="Global low-carbon electricity generation employment")+coord_flip()+
+  annotate('text',x=0.8,y=100,label="Data: IEA World Energy Employment 2022",hjust=0)+
+  theme(axis.title=element_text(size=20,face="bold"),legend.position="none",
+  axis.text.x=element_text(size=12,face="bold"),
+  axis.title.x=element_text(size=12,face="bold"),
+  axis.text.y=element_text(size=12,face="bold"))
+
+q
+png(paste0("employment-low-carbon.png"),width=1400,height=700,units="px",res=200,type="cairo-png")
+q
+dev.off()
+```
+
+```{r}
+dfus<-read_csv("us.csv")
+p<-dfus %>% ggplot(aes(x=Technology,y=`Terawatt-hours`,fill=Type))+geom_col()+
+  labs(x="",title="US Non-hydro clean energy 2020")+coord_flip()+
+  annotate('text',x=0.8,y=100,label="Data: BP World Energy Statistics 2021",hjust=0)+
+  theme(axis.title=element_text(size=20,face="bold"),legend.position="none",
+  axis.text.x=element_text(size=12,face="bold"),
+  axis.title.x=element_text(size=12,face="bold"),
+  axis.text.y=element_text(size=12,face="bold"))
+p
+png(paste0("us-non-hydro-renewables.png"),width=1200,height=700,units="px",res=200,type="cairo-png")
+p
+dev.off()
+```
+
+```{r}
+dfg<-read_csv("graphite.csv") %>% filter(Year=='2020')
+p<-dfg %>% ggplot(aes(x=Country,y=`Tonnes`/1000))+geom_col(fill="blue")+
+  labs(x="",y="'000 tonnes",title="Natural Graphite Production 2020 (USGS)") + coord_flip()
+p
+png(paste0("natural-graphite-2020.png"),width=900,height=700,units="px",res=200,type="cairo-png")
+p
+dev.off()
+```

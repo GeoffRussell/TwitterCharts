@@ -1,0 +1,41 @@
+---
+title: "plotlysample"
+author: "GeoffRussell"
+date: "11/9/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(plotly)
+getPalette = colorRampPalette(brewer.pal(9, "OrRd"))
+df<-tribble(
+  ~Region,~Population,~PerCapEnergy,~xmin,~xmax,~ymin,~ymax,
+  "North America",377,1492,0,377,0,1492,
+  "Europe",640,779,377,1018,0,779,
+  "China",1410,629,1018,2429,0,629
+)
+fig<-plot_ly()
+l<-list()
+pdf<-df %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
+  mutate(x=xmin+(xmax-xmin)/2,
+    y=ymin+(ymax-ymin)/2)
+l<-pdf %>% pmap(
+  function(...) {
+    c<-tibble(...)
+    l<-append(l,list(type="rect",text=c$Region,hoverinfo="text",x0=c$xmin,x1=c$xmax,y0=c$ymin,y1=c$ymax,fillcolor=c$colr,opacity=0.7,line=list(width=0)))
+  }
+)
+layout(fig,title="TITLE", shapes=l) %>% add_trace(type="scatter",mode="marker",x=pdf$x,y=pdf$y,text=pdf$Region,hoverinfo="text",marker=list(color="green"))
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
