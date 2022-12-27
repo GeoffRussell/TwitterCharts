@@ -1,0 +1,10 @@
+Cap,Name,Type,Status,Location,Ref,Connect,DateOn,Country
+143,BOHUNICE A1,HWGCR,Permanent Shutdown,Jaslovské Bohunice,93,1972-12-25,1972-12-25,SK
+440,BOHUNICE-1,PWR,Permanent Shutdown,Jaslovske Bohunice,408,1978-12-17,1978-12-17,SK
+440,BOHUNICE-2,PWR,Permanent Shutdown,Jaslovske Bohunice,408,1980-03-26,1980-03-26,SK
+500,BOHUNICE-3,PWR,Operational,Jaslovske Bohunice,466,1984-08-20,1984-08-20,SK
+500,BOHUNICE-4,PWR,Operational,Jaslovske Bohunice,466,1985-08-09,1985-08-09,SK
+500,MOCHOVCE-1,PWR,Operational,LEVICE,467,1998-07-04,1998-07-04,SK
+500,MOCHOVCE-2,PWR,Operational,LEVICE,469,1999-12-20,1999-12-20,SK
+471,MOCHOVCE-3,PWR,Under Construction,LEVICE,440,,NA,SK
+471,MOCHOVCE-4,PWR,Under Construction,LEVICE,440,,NA,SK

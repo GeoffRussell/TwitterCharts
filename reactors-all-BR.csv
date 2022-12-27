@@ -1,0 +1,4 @@
+Cap,Name,Type,Status,Location,Ref,Connect,DateOn,Country
+640,ANGRA-1,PWR,Operational,ANGRA DOS-REIS,609,1982-04-01,1982-04-01,BR
+1350,ANGRA-2,PWR,Operational,ANGRA DOS-REIS,1275,2000-07-21,2000-07-21,BR
+1405,ANGRA-3,PWR,Under Construction,ANGRA DOS-REIS,1340,,NA,BR
