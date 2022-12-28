@@ -14,7 +14,8 @@ library(RSelenium)
 library(stringr)
 library(lubridate)
 # Version 103.0.5060.134 (Official Build) (64-bit)
-rd<-rsDriver(browser="chrome",chromever="103.0.5060.134",version="3.141.59")
+#rd<-rsDriver(browser="chrome",chromever="103.0.5060.134",version="3.141.59")
+rd<-rsDriver(browser="chrome",chromever="108.0.5359.71",version="3.141.59")
 ```
 
 ## Careful 
@@ -30,19 +31,163 @@ url1<-"https://www.world-nuclear.org/reactor/default.aspx/"
 getStart<-function(vec) {
   ix<-1
   vecout<-vector(length=length(vec))
+  sdown<-vector(length=length(vec))
   for (n in vec) {
     n<-str_replace_all(n," ","%20")
     remDr$navigate(paste0(url1,n))
     p<-read_html(remDr$getPageSource()[[1]])
     table<-p %>% html_nodes("table") %>% html_text()
     dt<-str_match(table[2],"TimelineConstruction Start(.*?\\d\\d\\d\\d)")
+    sd<-str_match(table[2],"Permanent Shutdown(.*?\\d\\d\\d\\d)")
     print(dt)
-    vecout[ix]<-dt[2]
+    print(sd)
+    vecout[ix]<-paste0(dt[2],":",sd[2])
     ix<-ix+1
   }
   vecout
 }
-#vv<-getStart(c("FUQING-2","FUQING-1","FUQING-3"))
+vv<-getStart(c("LENINGRAD-1","KALININ-2"))
+```
+```{r}
+dfshow<-tibble()
+print(ymd(now()))
+getData<-function(ccode,country,Country) {
+  dff<-read_csv(paste0("reactors-all-",ccode,".csv"))
+  dff2<-dff %>% mutate(Start=getStart(Name)) %>% separate(Start,c("Start","Shutdown"),sep=":") 
+  dff3<-dff2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+    mutate(OpTime=ifelse(Shutdown=="NA",(today()-ymd(Connect))/365,(ymd(parse_date(str_replace_all(Shutdown,"\302\240"," "),format="%d %B %Y"))-ymd(Connect))/365)) %>%
+    mutate(Dur=(ymd(Connect)-ymd(StartCon))/365)
+  write_csv(dff3,paste0("reactors-data-",country,".csv"))
+}
+#getData("FR","france","France")
+#getData("UA","ukraine","Ukraine")
+#getData("CH","swiss","Switzerland")
+```
+
+```{r}
+comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+doCountry<-function(ccode,country,Country) {
+  FukuDate<-ymd("2011-03-11")
+  bungalaE<-570e9
+  df<-read_csv(paste0("reactors-data-",country,".csv")) %>%
+    mutate(NameConnection=paste0(Name,' ',Connect),MWe=Ref) %>%
+    mutate(InFuku=(FukuDate<Connect & FukuDate>StartCon),
+         nBun=MWe*1e6*24*365*0.89/bungalaE,
+         fac=19/(Dur*12/nBun))
+  md<-comma(median(df$Dur,na.rm=TRUE))
+  mn<-comma(mean(df$Dur,na.rm=TRUE))
+  dfstate<-df %>% mutate(Operation=OpTime,Construction=Dur) %>%
+    pivot_longer(c("Operation","Construction"),names_to="State",values_to="Years")
+  dfshow<<-dfstate
+  df %>% filter(!is.na(Dur)) %>% summarise(n=n())
+  nreactors<-as.numeric(df %>% filter(!is.na(Dur)) %>% summarise(n=n()))
+  yy<-30
+  
+  dfstate$State=fct_relevel(dfstate$State,"Operation")
+  q<-dfstate %>% 
+    mutate(IsRun=is.na(Shutdown),MW=ifelse(State=="Construction","",paste0(Ref,"MW",ifelse(IsRun,"*","")))) %>%
+    ggplot(aes(reorder(NameConnection,Connect),Years,fill=State)) +
+      geom_bar(stat="identity")+coord_flip()+
+      geom_text(aes(label=MW),position="stack",hjust=1,size=3)+
+      labs(title=paste0(Country,": nuclear reactor build/run times"),y="Years",x="")
+  print(q)
+  png(paste0(country,"-op-times.png"),width=2000,height=300+nreactors*60,units="px",res=300,type="cairo-png")
+  print(q)
+  dev.off()
+    
+  p<-df %>% filter(!is.na(Dur)) %>% ggplot() +
+  geom_col(aes(reorder(NameConnection,Connect),Dur,fill=MWe))+
+  geom_text(aes(reorder(NameConnection,Connect),Dur+0.1,
+                label=paste0("(",comma(nBun),':',comma(fac),")"),hjust=0),size=1.7)+
+  coord_flip()+
+  annotate("text",x=2.5,y=yy,hjust=1,label=paste0("Number of reactors ",nreactors,""))+
+  annotate("text",x=4,y=yy,hjust=1,label=paste0("Mean ",mn," years"))+
+  annotate("text",x=5.5,y=yy,hjust=1,label=paste0("Median ",md," years"))+
+  annotate("text",x=7,y=yy,hjust=1,label="Data: IAEA PRIS")+
+  annotate("text",x=18,y=yy,hjust=1,size=2,label="(n:r)\nn=number of Bungala\nsolar farms (570 GWh/year)\nr=nuclear build speed\ncompared to Bungala\ne.g, 2=double, 3=triple")+
+  labs(title=paste0(Country,": nuclear reactor construction times"),y="Years to grid connection",x="")
+  print(p)
+  png(paste0(country,"-build-times.png"),width=2000,height=300+nreactors*60,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+doBars<-function(ccode,country,Country,legdate="2022-01-01",legrow=3.0) {
+  df<-read_csv(paste0("reactors-data-",country,".csv"),col_types=cols(Name=col_factor()))
+  
+  md<-comma(median(df$Dur,na.rm=TRUE))
+  mn<-comma(mean(df$Dur,na.rm=TRUE))
+  nreactors<-as.numeric(df %>% filter(!is.na(Dur)) %>% summarise(n=n()))
+  yy<-1
+  
+  bungalaE<-570e9
+  dfstate<-df %>% mutate(Operation=OpTime,Construction=Dur,
+         nBun=Ref*1e6*24*365*0.89/bungalaE,
+         fac=19/(Dur*12/nBun))# %>%
+    #pivot_longer(c("Operation","Construction"),names_to="State",values_to="Years")
+  dfs<-dfstate %>% 
+    mutate(ShutdownDate=parse_date(ifelse(is.na(Shutdown),"31 December 2022",
+                                          str_replace_all(Shutdown,"\302\240"," ")),format="%d %B %Y"),
+    StartConDate=ymd(StartCon),
+    ConnectDate=ymd(Connect),
+    NameR=reorder(Name,ymd(StartCon)))
+  print(str(dfs))
+  xx<-dfs 
+  p<-dfs %>% filter(!is.na(ConnectDate)) %>% ggplot(aes(x=NameR))+
+    #geom_point(data=dfs %>% filter(is.na(ConnectDate)),aes(y=ymd(StartConDate)),shape=1,color="red")+
+    geom_linerange(aes(ymin=StartConDate,ymax=ymd(ConnectDate),color="Construction"),linewidth=4)+
+    geom_linerange(aes(ymin=ymd(ConnectDate),ymax=ymd(ShutdownDate),color="Operation"),linewidth=4)+
+    labs(title=paste0(Country,": reactor build/operation dates\nData: IAEA PRIS, December 2022"),y="Years",x="")+
+    #geom_text(data=dfs %>% filter(!is.na(ConnectDate)),aes(y=ymd(ShutdownDate)-months(4),label=paste0(Ref,"MW")),hjust=1,size=2,color="white")+
+    geom_text(aes(y=ShutdownDate,label=paste0(Ref,"MW")),hjust=1,size=2,color="white")+
+    #geom_text(data=dfs %>% filter(is.na(ConnectDate)),aes(y=StartConDate+months(3),label=paste0(Ref,"MW")),hjust=0,size=2,color="black")+
+    #geom_text(data=dfs %>% filter(!is.na(ConnectDate)),
+    #  aes(y=StartConDate,label=paste0("[",comma(nBun),':',comma(fac),"]"),hjust=0),size=2,color="white")+
+    annotate("text",x=legrow,y=ymd(legdate),hjust=1,label=paste0("Construction time: ",nreactors," reactors"),size=2)+
+    annotate("text",x=legrow-0.5,y=ymd(legdate),hjust=1,label=paste0("Median ",md," years"),size=2)+
+    annotate("text",x=legrow-1,y=ymd(legdate),hjust=1,label=paste0("Mean ",mn," years"),size=2)+
+    coord_flip()+
+    scale_color_manual(name='',
+                     breaks=c('Construction', 'Operation'),
+                     values=c('Construction'='red', 'Operation'='darkgreen'))
+  png(paste0(country,"-op-range.png"),width=2000,height=300+nreactors*70,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+  print(p)
+  xx
+}
+fs<-function(abbr,c,C,legdate="2022-10-01",legrow=3) {
+  doBars(abbr,c,C,legdate,legrow)
+}
+nua<-fs("UA","ukraine","Ukraine",legrow=2)
+nch<-fs("CH","swiss","Switzerland")
+xxxxxxxx
+ngb<-fs("GB","britain","Great Britain")
+njp<-fs("JP","japan","Japan",legdate="1978-01-01",legrow=31)
+nfr<-fs("FR","france","France",legrow=5)
+nca<-fs("CA","canada","Canada",legdate="1975-01-01",legrow=20)
+nch<-fs("CN","china","China",legdate="2000-01-01",legrow=20)
+nru<-fs("RU","russia","Russia",legdate="1975-01-01",legrow=40)
+nus<-fs("US","usa","United States",legdate="2020-01-01",legrow=5)
+nnl<-fs("NL","netherlands","Netherlands")
+nkr<-fs("KR","sthkorea","South Korea",legdate="1985-01-01",legrow=16)
+nde<-fs("DE","germany","Germany",legrow=11)
+```
+
+
+
+```{r}
+dff<-read_csv("canada-reactors.csv")
+dff2<-dff %>% mutate(Start=getStart(Name))
+dff3<-dff2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(dff3,"canada-reactors-mod.csv")
+```
+```{r}
+dff<-read_csv("reactors-all-DE.csv")
+dff2<-dff %>% mutate(Start=getStart(Name))
+dff3<-dff2 %>% mutate("StartCon"=parse_date(str_replace_all(Start,"\302\240"," "),format="%d %B %Y")) %>% 
+  mutate(Dur=(ymd(Connection)-ymd(StartCon))/365)
+write_csv(dff3,"german-reactors-mod.csv")
 ```
 
 ```{r}
