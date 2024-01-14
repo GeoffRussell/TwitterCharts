@@ -30,6 +30,7 @@ change from time to time, so when 2022 comes out the code may have to be adjuste
 
 
 ```{r data}
+theyear<-"2021D"
 bpfile<-"bp-stats-review-2021-all-data.xlsx"
 s21<-excel_sheets(bpfile)
 print(s21)
@@ -183,7 +184,7 @@ p<-ttmp %>% ggplot(aes(x=Year,y=growth)) +
   geom_text(aes(x=Year,y=growth+100,label=comma(growth)),data=ttmp %>% filter(Year==2020)) + 
   facet_wrap(~Country) 
 p
-png(paste0("solar-growth-rates-by-top-countries-2000-2020.png"),width=1800,height=1800,units="px",res=200,type="cairo-png")
+png(paste0("solar-growth-rates-by-top-countries-2000-2020-",theyear,".png"),width=1800,height=1800,units="px",res=200,type="cairo-png")
 print(p)
 dev.off()
 
@@ -283,7 +284,7 @@ wshGrowth<-calcGrowth(stwh)
 
 sgr<-calcGrowthRatePanel(stwselected)
 sgr
-png(paste0("selectedCompoundGrowthRates-",selectedLabel,".png"),width=1200,height=1200,units="px",res=300,type="cairo-png")
+png(paste0("selectedCompoundGrowthRates-",selectedLabel,"-",theyear,".png"),width=1200,height=1200,units="px",res=300,type="cairo-png")
 sgr
 dev.off()
 
@@ -295,10 +296,10 @@ wshGrowthRate
 wgrsubc<-calcGrowthRate(stwsubch)
 wgrsubc
 
-png(paste0("wsh-growth-2000-2020.png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
+png(paste0("wsh-growth-2000-2020-",theyear,".png"),width=1800,height=1300,units="px",res=200,type="cairo-png")
 print(wshGrowth)
 dev.off()
-png(paste0("wsh-growthrate-2000-2020.png"),width=2600,height=1300,units="px",res=200,type="cairo-png")
+png(paste0("wsh-growthrate-2000-2020-",theyear,".png"),width=2600,height=1300,units="px",res=200,type="cairo-png")
 print(wshGrowthRate)
 dev.off()
 
@@ -392,7 +393,7 @@ makeRollingGraph<-function(rp,ntop=30,rmTypes=c("SolarPlusWindPlusBio","Clean"))
     
       t<-fulldfEx %>% select(Type) %>% unique() %>% filter(!Type %in% rmTypes) %>% map(~substr(.,1,1))
       t<-paste(unlist(t),sep="",collapse="")
-      png(paste0("rollout-top",ntop,"-over-",rp,"-years-",t,".png"),width=2200,height=1300,units="px",res=300,type="cairo-png")
+      png(paste0("rollout-top-",theyear,"-",ntop,"-over-",rp,"-years-",t,".png"),width=2200,height=1300,units="px",res=300,type="cairo-png")
       print(p)
       dev.off()
       print(p)
@@ -419,7 +420,7 @@ p<-selectedCountries %>% ggplot(aes(x=Year,y=inc,color=Type)) + geom_line(size=0
   labs(y="Increase in Megawatt-hours per person over 5 years",title="Electrical energy change by source (data: BP Stats 2021)")+
   theme(axis.title=element_text(size=7),axis.text.x=element_text(size=7))
 p
-png("megawatt-hours-per-person-increase.png",width=1800,height=800,units="px",res=300,type="cairo-png")
+png("megawatt-hours-per-person-increase-",theyear,".png",width=1800,height=800,units="px",res=300,type="cairo-png")
 p
 dev.off()
 ```
@@ -450,7 +451,7 @@ p
 #--------------------------------------------------------------------------------------
 # now make a png for posting
 #--------------------------------------------------------------------------------------
-png("cleanish-megawatt-hours-per-person.png",width=1800,height=800,units="px",res=300,type="cairo-png")
+png("cleanish-megawatt-hours-per-person-",theyear,".png",width=1800,height=800,units="px",res=300,type="cairo-png")
 p
 dev.off()
 ```
