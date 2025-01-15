@@ -1,0 +1,34 @@
+---
+title: "granularity-volatility"
+author: "GeoffRussell"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+```{r gendata}
+ndays<-2
+x<-seq(1,288*ndays,1)
+p<-50+runif(288*ndays)*5
+df<-data_frame(x=x,p=p) |> mutate(day=ceiling(x/288))
+dfg<-df |> group_by(day) |> summarise(dayavg=mean(p))
+
+df |> ggplot(aes(x=x,y=p)) + geom_line() + geom_smooth()
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

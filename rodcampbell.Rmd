@@ -1,0 +1,39 @@
+---
+title: "rodcampbell"
+author: "GeoffRussell"
+date: "2024-10-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+Consider the capital cost of nuclear power; as estimated by GenCost 2024 at $8655/kW.
+
+```{r data}
+usdtoaud<-1.5
+opexPerkWh<-31*usdtoaud/1000   # US$/MWh
+life<-c(60,80)
+capex<-c(8655)
+rpower<-1400e6
+cf<-c(0.9,0.5)
+lifekWh<-rpower*cf*life*24*365/1e3
+tcost<-capex*rpower/1e3
+capexkWh<-tcost/lifekWh
+cat(paste("OPEX AUD/kWh: ",opexPerkWh,"\n"))
+cat(paste("CAPEX AUD/kWh: ",capexkWh[1],"to", capexkWh[2]," for a lifetime of 60 to 80 years\n"))
+```
+
+```{r}
+capex<-c(12e9)
+rpower<-1400e6
+cf<-c(0.9,0.6)
+for(life in c(60,80)) {
+  lifekWh<-rpower*cf*life*24*365/1e3
+  capexkWh<-capex/lifekWh
+  cat(paste("CAPEX AUD/kWh: ",capexkWh[1],"to", capexkWh[2]," for a lifetime of ",life," years\n"))
+}
+```

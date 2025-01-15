@@ -1,0 +1,95 @@
+---
+title: "evinci-shielding"
+author: "GeoffRussell"
+date: "2024-11-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+options(scipen=100000)
+```
+
+## Calculate e-vinci shielding info 
+
+Nick Touran on `decouple` raised questions about shieding requirements of the Westinghouse e-vinci 5MWe micro-reactor.
+
+Let's try and work out what is needed from first principles.
+
+This webpage has [some information](https://westinghousenuclear.com/data-sheet-library/evinci-microreactor-the-next-generation-nuclear-research-reactor/) about neutron
+flux. And a figure indicating some shielding is packed in the reactor; only at one end.
+
+![](evinci-concept.png)
+
+The webpage says it can provide 5MWe or 6 MWth at 150C.
+
+According to Leah Crider from Westinghouse the steam comes to the generator at over 700 C.
+
+So let's start guessing. The core looks to be about 800 centimeters in diameter and 1.2m long. Leah 
+referred to the circumference, and it looks like a cylinder. 
+
+```{r calc}
+dia<-0.8
+length<-1
+circ<-2*pi*dia/2
+```
+
+We assume the gammas leave the core in every direction with equal probability so that the flux out of the 
+core is just equal to the surface area.
+
+```{r}
+area<-circ*length+2*(pi*dia/2)
+```
+
+When the reactor is running we assume the power is 15 MWth. 
+And that about 6 percent of the energy from every fission is in the form of a gamma emission; based 
+on Murray and Holbert "Nuclear Energy" (7th Edition); page 94. When U-233 fissions the gamma has 5.0 MeV of the total
+197.9 MeV.
+
+```{r}
+power<-15e6
+gperc<-5/197.9
+```
+
+The fraction of the power that is gamma is in watts ... joules per second.
+
+```{r}
+gammapower<-power*gperc
+```
+
+We are generating `r gammapower` joules per second of gamma ray energy.
+
+Gray is the measurement of radiation in joules/kilogram.
+So if you placed a spherical 1 kg object on the surface of the core with a 10cm diameter. It would be getting a constant
+radiation flux equal to the joules per second proportional to the area.
+
+```{r}
+targetDia<-10e-2   # m
+targetArea<-pi*(targetDia/2)^2
+(targetArea/area)
+targetGrays<-(targetArea/area)*gammapower
+```
+
+So each second, the target is getting a `r targetGrays` Gray dose.
+
+Place a 70kg person 2 meter from the centre of the core. What would the Grays be? 
+
+Assume the core is a sphere, to make it easy to calculate the gamma flux. Assume the person
+is a rectangle 180cm tall and 25cm wide. Calculate a 60 second dose. 
+
+Assume air has no impact.
+
+```{r}
+pHeight<-1.8
+pWidth<-25e-2
+pArea<-pHeight*pWidth
+pWeight<-70
+sphereDia<-2
+sphereSArea<-4*pi*(sphereDia/2)^2
+pArea/sphereSArea
+# grays = joules/kilo
+pGrays<-((pArea/sphereSArea)*gammapower)/pWeight
+pGrays*60
+```
+

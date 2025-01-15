@@ -1,0 +1,28 @@
+---
+title: "china-india-meat"
+author: "GeoffRussell"
+date: "2024-01-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Use the FAOSTAT data
+
+The FAO keeps [food balance sheet data](https://www.fao.org/faostat/en/#data/FBS).
+
+```{r cars}
+df<-read_csv("FAOSTAT_data_en_1-15-2024.csv")
+p<-df %>% select(Area,Item,Year,Value) %>% filter(!grepl("Milk|Fish|Butter|Molluscs|Crust|Cepha|Aqua|Cream|Eggs",Item)) %>% 
+  ggplot() + geom_col(aes(x=Year,y=Value,fill=Item)) + facet_grid(.~Area) +
+  labs(x="",y="kcal/cap/day",title="FAOStat meat consumption in India/China last decade")
+p
+png("india-china-meat-2010-2021")
+png("india-china-meat-2010-2021.png",width=1200,height=800,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+```
+

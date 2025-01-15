@@ -1,0 +1,36 @@
+---
+title: "landuse"
+author: "GeoffRussell"
+date: "2023-07-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(treemapify)
+comma<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+```
+
+## data 
+
+```{r cars}
+df <- read_csv("landuse-2010.csv")
+p<-df %>% ggplot(aes(area=Area,fill=SubCategory,label=paste(SubCategory,"\n",Percent,"%","\n",comma(Area*100/1e6),"million Ha"))) + geom_treemap() +
+    geom_treemap_text()+labs(fill="",title="Land Use in Australia, (Data: www.abares.gov.au/landuse)")+
+  theme(title=element_text(size=10,face="bold"))
+p
+png(paste0("land-use-treemap.png"),width=2500,height=2000,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+
+q<-df %>% filter(!SubCategory %in% c("Grazing natural vegetation","Nature conservation","Grazing modified pastures","Indigenous areas","Dryland cropping","Water","Minimal use")) %>%
+  ggplot(aes(area=Area,fill=SubCategory,label=paste(SubCategory,"\n",Percent,"%","\n",comma(Area*100/1e6),"million Ha"))) + geom_treemap() +
+  geom_treemap_text(grow=TRUE)+labs(fill="",title="Land Use in Australia, (Data: www.abares.gov.au/landuse)")+
+  theme(title=element_text(size=10,face="bold"))
+q
+png(paste0("land-use-treemap-exp.png"),width=2500,height=2000,units="px",res=200,type="cairo-png")
+print(q)
+dev.off()
+
+```

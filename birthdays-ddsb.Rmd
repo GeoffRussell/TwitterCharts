@@ -1,0 +1,21 @@
+---
+title: "birthdays-ddsb"
+author: "GeoffRussell"
+date: "2023-12-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Illustrate the birthday paradox 
+
+```{r}
+for(n in seq(23,50,3)) {
+  p<-prop.table(table(map_int(1:1000,~length(unique(sort(sample(seq(1:365),size=n,replace=TRUE)))))<n))
+  print(n)
+  print(p)
+}
+```

@@ -1,0 +1,60 @@
+---
+title: "learn-r"
+author: "GeoffRussell"
+date: "2023-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Across 
+
+```{r cars}
+df<-tribble(
+  ~AJP,~Liberal,~Greens,~Year,~District,
+  500,2300,1500,"2018","Smithfield",
+  500,2300,1500,"2018","Melbourne",
+  500,2300,1500,"2018","Brunswick",
+  500,2400,1510,"2022","Smithfield",
+  600,2400,1530,"2022","Melbourne",
+  650,2400,1700,"2022","Brunswick"
+)
+dfmm<-df %>% mutate(m=across(where(is.numeric),mean))
+
+# find total vote for each election ... sum of vote in each district 
+dflg<-df %>% group_by(Year) %>% summarise(across("AJP":"Greens",sum))
+# find mean vote over the two elections ... use column range notation
+dflgm<-df %>% group_by(District) %>% summarise(across("AJP":"Greens",mean))
+# Make data long for plotting 
+dfl<-df %>% pivot_longer(cols="AJP":"Greens",names_to="Party",values_to="Vote")
+dfl %>% ggplot()+geom_col(aes(x=Party,y=Vote),width=0.4,fill="blue")+facet_grid(District~Year)
+
+```
+```{r}
+# for each column of the starwars tibble which is a character column, find the number of different 
+# values ... result will be 1 x number of char columns
+sw<-starwars
+starwars %>% 
+  summarise(across(where(is.character), n_distinct))
+# now group by hair colour
+starwars %>% group_by(hair_color) %>%
+  summarise(across(where(is.character), n_distinct))
+# remove na and singletons 
+starwars %>% group_by(hair_color) %>%
+  filter(n()>1 & (!is.na(hair_color))) %>%
+  summarise(across(where(is.character), n_distinct))
+# calculate mean for columns ... grouped by hair
+starwars %>% group_by(hair_color) %>% filter(!(is.na(birth_year)|is.na(mass))) %>%
+  summarise(across(where(is.numeric), ~mean(.x,na.rm=TRUE)))
+# put multiple functions in a list
+max_mean<-list(
+  max = ~max(.x,na.rm=TRUE),
+  mean = ~mean(.x,na.rm=TRUE)
+)
+starwars %>% group_by(hair_color) %>% filter(!(is.na(birth_year)|is.na(mass))) %>%
+  summarise(across(where(is.numeric), max_mean))
+
+```

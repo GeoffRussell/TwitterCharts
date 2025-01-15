@@ -1,0 +1,347 @@
+---
+title: "pris-scrape"
+author: "GeoffRussell"
+date: "2024-09-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(xml2)
+library(hash)
+reactorfilename<-"prisreactorlist-sep-8-2024.csv"
+reactorfilename<-"prisreactorlist-oct-14-2024.csv"
+reactorfilename<-"prisreactorlist-jan-15-2025.csv"
+
+detailsfilename<-"prisreactordetails-sep-8-2024.csv"
+detailsfilename<-"prisreactordetails-oct-14-2024.csv"
+detailsfilename<-"prisreactordetails-jan-15-2025.csv"
+
+outputdetailsfilename<-"prisoutputdetails-jan-15-2025.csv"
+
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+
+```
+
+
+
+## PRIS Reactor database extraction
+
+The older *reactor-build.Rmd* code required all kinds of tricks to make it work. The following is much simpler and doesn't need
+a browser daemon (unless rvest is running one invisibly).
+
+```{r pris}
+html<-read_html("https://pris.iaea.org/PRIS/CountryStatistics/CountryStatisticsLandingPage.aspx")
+```
+
+There seems to be a timing issue if the following code is run with the above line
+
+```{r}
+c<-html |> html_element("#sidebar-first") |> html_element("ul") |> html_elements("li") |> html_elements("a") 
+country_codes<-tibble(code=(c |> html_attr("href"))) |> mutate(codes=gsub(".*current=(..).*","\\1",c)) |>
+  select(codes) |> filter(str_length(codes)==2)
+```
+  
+Now that we have all the country codes, we need to first build a list of reactors for each country and then get the details for each reactor in
+the list.
+
+```{r}
+## Experimental code to get values from top graphical area
+getDataForCountry<-function(code) {
+  url<-paste0("https://pris.iaea.org/PRIS/CountryStatistics/CountryDetails.aspx?current=",code)
+  df<-read_html(url)
+  t<-df |> html_elements("#content .chartValueBox") |> html_text2() 
+  t[[4]]
+}
+# Test this
+t<-tibble(totGWe=getDataForCountry("US"),Country="US")
+t<-bind_rows(t,tibble(totGWe=getDataForCountry("JP"),Country="JP"))
+t<-bind_rows(t,tibble(totGWe=getDataForCountry("GB"),Country="GB"))
+t<-bind_rows(t,tibble(totGWe=getDataForCountry("KZ"),Country="KZ"))
+t<-bind_rows(t,tibble(totGWe=getDataForCountry("IT"),Country="IT"))
+t<-bind_rows(t,tibble(totGWe=getDataForCountry("CA"),Country="CA"))
+```
+
+```{r}
+getReactorsForCountry<-function(code) {
+  url<-paste0("https://pris.iaea.org/PRIS/CountryStatistics/CountryDetails.aspx?current=",code)
+  df<-read_html(url)
+  t<-df |> html_elements("table") 
+  t[[2]] |> html_table() |> mutate(Country=code)
+}
+# Test this
+getReactorsForCountry("JP")
+```
+
+The following takes a few minutes and we save the file.
+
+```{r}
+reactors<-tibble()
+for (c in country_codes$codes) {
+  reactors<-bind_rows(reactors,getReactorsForCountry(c))
+}
+write_csv(reactors,reactorfilename)
+```
+
+
+
+Now for the function to get the details for each reactor we aren't (yet) interested in the operational record, just construction information.
+
+```{r}
+reactors<-read_csv(reactorfilename)
+```
+
+Having initialised the hash, we can run the next bit over and over again. It takes about an hour for all the reactors in the database.
+
+```{r}
+getReactorDetails<-function(name) {
+    name<-str_replace_all(name," ","%20")
+    url<-"https://world-nuclear.org/nuclear-reactor-database/details/"
+    print(name)
+    fullurl<-str_c(url,name)
+    l<-safely(read_html,'empty page')(fullurl)
+    if (is.null(l$error)) { 
+        rdetails<-read_html(fullurl) |> html_elements("table") |> html_table() 
+        str(rdetails)
+        str(rdetails[[4]])
+        dff<-bind_rows(rdetails[[4]])
+        str(dff)
+        df<-tibble(gwh=dff$`Electricity Supplied (GWh)`) |> filter(gwh!="-") 
+        str(df)
+        gwh<-sum(as.double(df$gwh))
+        str(gwh)
+        t<-bind_rows(rdetails[[1]],rdetails[[2]],rdetails[[3]],tibble(X1="Total GWh",X2=as.character(gwh)))
+        t |> mutate(reactorName=name) |> rename(attribute=X1,value=X2)
+    }
+    else {
+      print(paste0("Can't find: ",name))
+      tibble()
+    }
+}
+getMoreReactorDetails<-function(name) {
+    thename=name
+    name<-str_replace_all(name," ","%20")
+    url<-"https://world-nuclear.org/nuclear-reactor-database/details/"
+    ccc<-c('Reference Unit Power (MWe)','Annual Time Online (Hours)','Electricity Supplied (GWh)')
+    print(name)
+    fullurl<-str_c(url,name)
+    l<-safely(read_html,'empty page')(fullurl)
+    if (is.null(l$error)) { 
+        rdetails<-read_html(fullurl) |> html_elements("table") |> html_table() 
+        str(rdetails)
+        dff<-bind_rows(rdetails[[4]])
+        outputdf<-rdetails[[4]] |> pivot_longer(cols=ccc) |> select(Year,name,value) |> mutate(reactor=thename,value=as.numeric(value))
+        str(outputdf)
+        #str(dff)
+        df<-tibble(gwh=dff$`Electricity Supplied (GWh)`) |> filter(gwh!="-") 
+        str(df)
+        gwh<-sum(as.double(df$gwh))
+        str(gwh)
+        t<-bind_rows(rdetails[[1]],rdetails[[2]],rdetails[[3]],tibble(X1="Total GWh",X2=as.character(gwh)))
+        rv<-t |> mutate(reactorName=name) |> rename(attribute=X1,value=X2)
+        return(list(rv,outputdf))
+    }
+    else {
+      print(paste0("Can't find: ",name))
+      return (list(tibble(),tibble()))
+    }
+}
+```
+
+```{r test}
+# Test the function
+testd1<-tibble()
+testd2<-tibble()
+x<-getMoreReactorDetails("BARAKAH-1")
+testd1<-bind_rows(testd1,x[[1]])
+testd2<-bind_rows(testd2,x[[2]])
+x<-getMoreReactorDetails("BRUCE-1")
+testd1<-bind_rows(testd1,x[[1]])
+testd2<-bind_rows(testd2,x[[2]])
+```
+
+```{rr skip}
+testf<-bind_rows(testf,getReactorDetails("BRUCE-2"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-3"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-4"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-5"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-6"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-7"))
+testf<-bind_rows(testf,getReactorDetails("BRUCE-8"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-1"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-2"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-3"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-4"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-5"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-6"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-7"))
+testf<-bind_rows(testf,getReactorDetails("PICKERING-8"))
+testf<-bind_rows(testf,getReactorDetails("DARLINGTON-1"))
+testf<-bind_rows(testf,getReactorDetails("DARLINGTON-2"))
+testf<-bind_rows(testf,getReactorDetails("DARLINGTON-3"))
+testf<-bind_rows(testf,getReactorDetails("DARLINGTON-4"))
+#rdt<-bind_rows(rdt,getReactorDetails("BR-3"))
+```
+
+```{r}
+# Total GWh for reactors in testf
+twh<-as.double(testf |> filter(attribute=="Total GWh") |> summarise(twh=sum(as.double(value))/1000))
+subsidy<-20e9
+subperkwh=subsidy/(twh*1e12/1e3)
+subperkwh
+```
+
+
+## Build the reactor tables
+
+```{r}
+globaldf<-tibble()
+yearlydf<-tibble()
+dthash<-hash()
+```
+
+```{r}
+nn<-0
+for(n in reactors$Name) {
+  if (!has.key(n,dthash)) {
+    # dthash[n]=getReactorDetails(n)
+    l<-getMoreReactorDetails(n)
+    globaldf<-bind_rows(globaldf,l[[1]])
+    yearlydf<-bind_rows(yearlydf,l[[2]])
+    dthash[n]=n
+    nn<-nn+1
+    #if (nn>100) break
+  }
+}
+write_csv(globaldf,detailsfilename)
+write_csv(yearlydf,outputdetailsfilename)
+```
+```{r}
+write_csv(globaldf,detailsfilename)
+write_csv(yearlydf,outputdetailsfilename)
+```
+
+```{r}
+saveRDS(dthash,"reactordatahash.RData")
+```
+
+```{r}
+dthash[["BARAKAH-1"]]$attribute
+```
+
+Now we can collect up all the records from the hash and write to a file for future use
+
+```{r}
+keys(dthash)
+rdt<-tibble()
+for (n in keys(dthash)) {
+  if (length(dthash[[n]])==0) {
+    print(paste0("No data: ",n))    
+  }
+  rdt<-bind_rows(rdt,dthash[[n]])
+}
+rdt |> select(reactorName) |> unique()
+write_csv(rdt,detailsfilename)
+```
+## Processing the data
+
+We need to parse the dates and convert to a date format to allow the calculation of timespans.
+
+```{r}
+ccodes<-read_csv("country_codes.csv")
+rdt<-read_csv(detailsfilename)
+rlist<-read_csv(reactorfilename)
+rdt$reactorName=gsub("%20"," ",rdt$reactorName)
+
+rdtw<-rdt |> pivot_wider(names_from=attribute,values_from=value) |> mutate(
+  startBuild=parse_date(`Construction Start`,format="%*%d %B %Y"),
+  firstCritical=parse_date(`First Criticality`,format="%*%d %B %Y"),
+  connectToGrid=parse_date(`First Grid Connection`,format="%*%d %B %Y"),
+  commercialOn=parse_date(`Commercial Operation`,format="%*%d %B %Y"),
+  shutdownOn=parse_date(`Permanent Shutdown`,format="%*%d %B %Y"),
+  pauseOn=parse_date(`Long-term Shutdown`,format="%*%d %B %Y"),
+  restartOn=parse_date(`Restart`,format="%*%d %B %Y"),
+  buildYears=as.integer(ymd(connectToGrid)-ymd(startBuild))/365
+  ) |> left_join(rlist %>% select(-`First Grid Connection`),by=join_by(reactorName==Name)) |> rename(CountryCode=Country) 
+
+fullrdtw<-rdtw |> left_join(ccodes,by=join_by(CountryCode==code2)) 
+
+stat_box_data <- function(y) {
+  return( 
+    data.frame(
+      y = 0, 
+      label = paste0('n=', length(y))
+    )
+  )
+}
+stat_box_data2 <- function(y) {
+  return( 
+    data.frame(
+      y = 30, 
+      label = paste0('median=', comma(median(y)), 'yrs')
+    )
+  )
+}
+fullrdtw$XXX<-fct(fullrdtw$Country,
+        levels=c(
+          "Sweden","Spain","South Africa","Slovenia","Slovakia","Russian Federation","Romania","Pakistan",
+          "USA","United Kingdom","United Arab Emirates", "Ukraine", "Turkey", "Switzerland",
+          "Netherlands","Mexico","Lithuania","Korea (the Republic of)","Kazakhstan","Japan","Italy","Iran (Islamic Republic of)","India","Hungary",
+          "Germany","France","Finland","Egypt","Czechia","China","Canada","Bulgaria","Brazil","Belgium","Belarus","Bangladesh","Armenia","Argentina"
+        ))
+```
+```{r}
+recent<-fullrdtw |> filter((today()-ymd(connectToGrid))<(365*20))
+```
+
+```{r}
+plotit<-function(.data,title) {
+  .data |> ggplot(aes(group=XXX,x=fct_reorder(XXX,buildYears,.desc=TRUE),y=buildYears)) + 
+  geom_boxplot(color="purple")  + 
+  stat_summary(
+    fun.data = stat_box_data2, 
+    geom = "text", 
+    size = 3,
+    hjust = 0,
+    vjust = 0.5
+  ) + 
+  stat_summary(
+    fun.data = stat_box_data, 
+    geom = "text", 
+    size = 3,
+    hjust = 0,
+    vjust = 0.5
+  ) + 
+  coord_flip()+ 
+  annotate("text",x=1.5,y=5,label="Data: IAEA") +
+  labs(x="",y="Years",title=title)
+}
+
+p<-plotit(recent,"Build time for reactors completed during the past 15 years\n(excludes research, ice-breaker, \nand aircraft carrier reactors)")
+p
+dopng("GlobalReactorBuildTimesLast15years2024.png",p,h=2800)
+p<-plotit(fullrdtw,"Build time for all nuclear power reactors\n(excludes research, ice-breaker, \nand aircraft carrier reactors)")
+p
+dopng("GlobalReactorBuildTimesAll2024.png",p,h=2800)
+
+```
+```{r}
+library(readxl)
+rrfile<-"ResearchReactorList2024.xlsx"
+rs<-excel_sheets(rrfile)
+rr<-read_excel(rrfile,skip=1,sheet="Sheet1")
+p<-rr |> filter(Status %in% c("OPERATIONAL","UNDER CONSTRUCTION","PLANNED")) |> ggplot(aes(x=Country)) + 
+  labs(x="",y="Number",title="Research Reactors\n(Excluding decommissioned or shutdown)")+
+  geom_bar(aes(fill=Status),position="stack") + coord_flip()
+p
+dopng("research-reactors-by-country2024.png",p,h=2500,w=2200)
+```
+
+

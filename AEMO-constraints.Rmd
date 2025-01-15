@@ -1,0 +1,68 @@
+---
+title: "AEMO-constraints"
+author: "GeoffRussell"
+date: "2/5/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+confile<-"/home/geoff/ARTICLES/GRID/NEM_Constraint_Report_2021_summary_data.xlsx"
+sheets<-excel_sheets(confile)
+print(sheets)
+```
+
+## NEM Constraint 
+
+```{r functions}
+getSheet<-function(sheetname) {
+    read_excel(confile,sheet=sheetname,na='n/a',col_types=c('text',
+                                                            rep('numeric',2),
+                                                            'text',
+                                                            'text',
+                                                            'text',
+                                                            'text'
+                                                            ))
+}
+dffcas<-read_excel(confile,sheet="Binding FCAS",na='n/a',col_types=c('text',
+                                                            rep('numeric',2),
+                                                            'text',
+                                                            'text'
+                                                            )) %>%
+  mutate("2020"=`2020 Hours`,"2021"=`2021 Hours`) %>% 
+  select(-`2020 Hours`,-`2021 Hours`) 
+
+df<-getSheet("Binding") %>% mutate("2020"=`2020 Hours`,"2021"=`2021 Hours`) %>% select(-`2020 Hours`,-`2021 Hours`) 
+
+show<-function(.data,txt) {
+ cat(txt,.data$n,"\n") 
+  
+}
+docounts<-function(df,type) {
+  cat(type," ",nrow(df),"\n")
+  df %>% filter(`2020`>0) %>% summarise(n=n()) %>% show("Binding>0 2020: ") 
+  df %>% filter(`2020`>24) %>% summarise(n=n()) %>% show("2020 >24 hrs: ")
+  df %>% filter(`2021`>24) %>% summarise(n=n()) %>% show("2021 >24 hrs: ")
+  df %>% filter(`2020`>0&`2021`==0.0) %>% summarise(n=n()) %>% show("Better in 2021: ")
+  df %>% filter(`2020`==0.0 & `2021`>0) %>% summarise(n=n()) %>% show("Worse in 2021: ")
+}
+docounts(df,"NEM Bindings 2021")
+docounts(dffcas,"FCAS Bindings 2021")
+
+
+
+dfl<-df %>% filter(`2020`==0&`2021`>100) %>%
+  pivot_longer(cols=c("2020","2021"),names_to="Year",values_to="Hours") %>%
+  select(`Constraint Equation ID`,`Hours`,`Year`,`Region`) 
+
+p<-dfl %>% ggplot() + geom_col(aes(x=`Constraint Equation ID`,y=`Hours`,fill=`Year`),position="dodge") + facet_wrap(~Region)+coord_flip()
+p
+
+png("constraints20-21.png",width=2000,height=3000,units="px",res=300,type="cairo-png")
+print(p)
+dev.off()
+
+```
+

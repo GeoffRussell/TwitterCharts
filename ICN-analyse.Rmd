@@ -1,0 +1,47 @@
+---
+title: "ICN-analyse"
+author: "GeoffRussell"
+date: "2023-07-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(stringr)
+library(lubridate)
+```
+
+#  Data
+
+```{r pressure, echo=FALSE}
+df<-read_csv("corporations-list.csv") %>% filter(!is.na(ICN)) %>% 
+  mutate(IsReg=!grepl("eregistered",Status)) %>%
+  mutate(RNTBC=grepl("RNTBC",Organisation)) %>%
+  mutate(ID=str_remove(`Document Link`,".*concernID="))
+dfderegestered <- df %>% group_by(IsReg) %>% summarise(n=n())
+df %>% filter(IsReg) %>% group_by(Size) %>% summarise(n=n())
+df %>% filter(IsReg) %>% group_by(RNTBC) %>% summarise(n=n())
+dfrntbc <- df %>% filter(IsReg & RNTBC)
+write_csv(dfrntbc,"rntbc-list.csv")
+```
+```{r}
+root <- paste0("https://register.oric.gov.au/")
+#for(i in seq(1,nrow(dfrntbc))) {
+for(i in seq(1,1)) {
+  id<-dfrntbc$ID[i]
+  print(id)
+  url <- paste0(root,"reports/generatereports.aspx?rpt=cmpext&fmt=pdf&concernID=",id)
+  url <- paste0(root,"document.aspx?concernID=",id)
+  url <- paste0(root,"Document.aspx?documentID=826388&amp;concernID=100987")
+  print(url)
+  lines <- readLines("scrape_final.js")
+  lines[1] <- paste0("var url ='", url ,"';")
+  writeLines(lines, "scrape_final.js")
+  system("phantomjs scrape_final.js")
+}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

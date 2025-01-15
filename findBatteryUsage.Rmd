@@ -1,0 +1,49 @@
+---
+title: "findBatteryUsage"
+author: "GeoffRussell"
+date: "2023-12-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+d<-"/home/geoff/ARTICLES/STATS/RBatteries/"
+```
+```{r}
+fnames<-Sys.glob(paste0(d,"openNem*SA*23-7D.csv"))
+fnames
+
+```
+```{r}
+mergeFiles<-function(flist) {
+  n=0;
+  for (f in flist) {
+    n=n+1
+    fin<-read_csv(f) %>% rename_with(~sub('date','Time',.x)) %>% rename_with(~sub('  ',' ',.x))
+    if (n==1) {
+      df<-fin %>% distinct(Time,.keep_all=TRUE)  
+    }
+    else {
+      df<-bind_rows(df,fin) %>% distinct(Time,.keep_all=TRUE) 
+    }
+  }
+  df %>% arrange(Time)
+}
+countDays<-function(.data) {
+  .data %>% select(Time) %>% mutate(date=str_sub(as.character(Time),1,10))
+}
+  
+df<-mergeFiles(fnames)
+```
+```{r}
+colb<-"Battery (Discharging) - MW"
+coli<-"Imports - MW"
+dfb<-df %>% mutate(date=str_sub(as.character(Time),1,10)) %>% group_by(date) %>% 
+  summarize(MW5=sum(!!as.symbol(colb)),IM5=sum(!!as.symbol(coli)))
+write_csv(dfb,"batteryusage2023.csv")
+```
+```{r}
+dfc<-df %>% countDays() %>% distinct(date,.keep_all=TRUE) %>% arrange(desc(date))
+```
+

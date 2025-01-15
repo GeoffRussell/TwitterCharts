@@ -1,0 +1,80 @@
+---
+title: "maxminpeakchart"
+author: "GeoffRussell"
+date: "2024-07-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(RcppRoll)
+```
+
+## Data 
+
+```{r data}
+bsize=48
+gsize=6*bsize
+labelrows<-function(.data) {
+  .data %>% mutate(groupn=as.integer(row_number()/gsize))
+}
+dir<-"/home/geoff/ARTICLES/STATS/MasteringShiny/SouthAustralianPower/"
+f<-paste0(dir,"openNEMMerge-17-04-2024-92D.csv")
+f
+dforig<-read_csv(f) 
+df <- dforig %>% slice(min(which(grepl("23:55:00",as.character(date))))+1:n())  %>% 
+  slice(1:max(which(grepl("23:55:00",as.character(date))))) %>%
+  mutate(demand=select(.,`Battery (Charging) - MW`:`Solar (Rooftop) - MW`) %>% apply(1,sum)) %>%
+  labelrows()
+# 48 is 4 hour block
+df$rswind<-roll_sum(df$`Wind - MW`/20,n=bsize,align="right",fill=0)
+df$rswindm<-roll_min(df$rswind,n=gsize,align="right",fill=0)
+df$rswindmx<-roll_max(df$rswind,n=gsize,align="right",fill=0)
+df$rswindmean<-roll_mean(df$rswind,n=gsize,align="right",fill=0)
+dfgdate<- df %>% group_by(groupn) %>% summarise(fdate=min(date))
+dfc1<-df %>% select(date,groupn,`Wind - MW`,rswindm,rswindmx,rswindmean)
+dfcheck<-df %>% select(date,`Wind - MW`,rswind,rswindmx,rswindmean,rswindm,groupn) %>% group_by(groupn) %>% 
+  summarise(min=min(rswindm),max=max(rswindmx),mean=mean(rswindmean))
+mdata <- left_join(dfgdate,dfcheck)
+
+p<-mdata %>% ggplot()+ 
+  geom_line(aes(x=fdate,y=min),color="green") +
+  geom_line(aes(x=fdate,y=mean),color="blue") +
+  geom_line(aes(x=fdate,y=max),color="red")+
+  labs(y="MWh")
+p
+
+hrs=bsize/12
+thrs=gsize/12
+png(paste0("max-min-over-",hrs,"hrs-in-",thrs,"hrs.png"),width=1400,height=700,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+
+```
+
+```{r}
+
+dfo<-df %>% mutate(demand=select(.,`Battery (Charging) - MW`:`Solar (Rooftop) - MW`) %>% apply(1,sum)) %>% 
+  mutate(solar=`Solar (Rooftop) - MW`+`Solar (Utility) - MW`) %>%
+  mutate(wind=`Wind - MW`) %>%
+  mutate(solarE=solar/20,windE=wind/20,demandE=demand/20) %>%
+  mutate(day=substr(as.character(date),1,10)) %>%
+  mutate(hr=paste0(substr(as.character(date),1,13),":00:00")) %>%
+  select(date,hr,day,demandE,solarE,windE,wind,solar,demand) 
+dfos<-dfo %>% group_by(day) %>% 
+  summarise(dsum=sum(demandE),ssum=sum(solarE),wsum=sum(windE))
+dfohr <- dfo %>% group_by(hr) %>%  
+  summarise(dsum=sum(demandE),ssum=sum(solarE),wsum=sum(windE))
+
+dfohr %>%  ggplot()+
+  geom_line(aes(x=ymd_hms(hr),y=100*(wsum+ssum)/dsum),color="red")+
+  geom_line(aes(x=ymd_hms(hr),y=100*wsum/dsum),color="green")+
+  geom_line(aes(x=ymd_hms(hr),y=100*ssum/dsum),color="yellow")
+dfos %>% ggplot()+
+  geom_line(aes(x=ymd(day),y=100*(wsum+ssum)/dsum))+
+  geom_line(aes(x=ymd(day),y=100*ssum/dsum),color="red")+
+  geom_line(aes(x=ymd(day),y=100*wsum/dsum),color="blue")
+```
+

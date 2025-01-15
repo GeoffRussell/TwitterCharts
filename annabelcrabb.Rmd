@@ -1,0 +1,22 @@
+---
+title: "annabelcrabb"
+author: "GeoffRussell"
+date: "2024-05-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Data 
+
+```{r}
+n<-100
+df<-read_csv("crabb.csv") %>% pivot_longer(cols=`Strong Support`:`Unsure`,names_to="View",values_to="N")
+nmen<-df %>% filter(Sex=="Men") %>% summarise(n=sum(N)) 
+nwomen<-df %>% filter(Sex=="Women") %>% summarise(n=sum(N))
+
+
+```

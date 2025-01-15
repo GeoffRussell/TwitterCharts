@@ -1,0 +1,33 @@
+---
+title: "car-weights"
+author: "GeoffRussell"
+date: "2024-10-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+```{r}
+cars<-tribble(
+~m1, ~m2, ~nsold1,~nsold2,~diffkg,~w1,~w2,
+"Tesla Model 3","Toyota Hilux",10877,64391,-183,1800,1550,
+"Tesla Model Y","Ford Ranger", 8717,47479,-281,1950,2100,
+"BYD Atto 3","Toyota RAV4", 2113,34845,113,1682,1550,
+"Polestar 2","Mitsubishi Triton", 1480,27436,129,2024,2040,
+"Hyundai Ioniq 5","Mazda CX5", 756,27062,501,1900,1500,
+"BMW ix3 Msport","Toyota Corolla", 593,25284,690,2270,1340,
+"Kia CV EV6","Isuzu Ute D-max", 564,24336,107,2100,2112,
+"Mercedes-Benz Eqa 250","MG ZS", 547,22466,781,2040,1284,
+"Volvo C40","Hyundai i30", 491,21166,712,2154,1358,
+"Porsche Taycan","Toyota Prado",428,21102,-113,2219,2300,
+)
+others<-tribble(
+  ~m1,~ev,~w1,~length,
+  "LDV eT60",1,2300,5365,
+  "Ford Ranger",0,2100,5389
+)
+```

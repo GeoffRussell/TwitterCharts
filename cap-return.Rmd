@@ -1,0 +1,30 @@
+---
+title: "cap-return"
+author: "GeoffRussell"
+date: "2024-11-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Cap Return 
+
+This is a concept used by AEMO to analyse electricity costs. Wholesale costs are set every 5 minutes. 
+They obviously have a mean. But prices above $300/MWh have a special significance. So they
+chart the average price as two components. 
+
+```{r }
+p<-rnorm(288,mean=200,sd=150)
+l<-p[p<300]
+h<-p[p>300]
+mp<-mean(p)
+ml<-mean(l)
+
+df<-data.frame(price=p) |> summarise(energy=mean(price[price<300]),cap=mean(price)-mean(price[price<300])) |> pivot_longer(cols=c("energy","cap")) |> mutate(x="x")
+df |> ggplot()+geom_col(aes(x=x,fill=name,y=value))+labs(x="",y="$/MWh",title="Average cost with above CAP component")
+
+```
+

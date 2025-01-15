@@ -1,0 +1,19 @@
+---
+title: "aircrashes"
+author: "GeoffRussell"
+date: "11/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Air Crashes 
+
+```{r data}
+df<-read_csv("~/LETTERS/WIX/List_of_deadliest_aircraft_accidents_and_incidents_3.csv")
+df %>% summarise(t=sum(TotalDeaths))
+```
+

@@ -1,0 +1,52 @@
+---
+title: "SNT"
+author: "GeoffRussell"
+date: "2024-10-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+H<-function(d,dmid=180,s=2.18,g=0.02) {
+  cinf=1
+  c0=0.12
+  cinf+(c0-cinf)/((1+(d/dmid)^s)^g)
+}
+rerf<-tribble(
+  ~dosex1,~dosex2,~mortality,~n,
+  0,5,0.1200,38509,
+  5,20,0.1181,14555,
+  20,40,0.1200,6411,
+  40,60,0.1282,4203,
+  60,80,0.1303,2710,
+  80,100,0.1311,2082,
+  100,125,0.1165,1975,
+  125,150,0.1490,1523,
+  150,175,0.1253,1460,
+  175,200,0.1467,1016,
+  200,250,0.1293,1570,
+  250,300,0.1510,1417,
+  300,500,0.1345,3369,
+  500,750,0.1369,2176,
+  750,1000,0.1771,1248,
+  1000,1250,0.1847,758,
+  1250,1500,0.1783,516,
+  1500,1750,0.2688,305,
+  1750,2000,0.2120,184,
+  2000,2500,0.2025,400,
+  2500,3000,0.2010,204
+) |> mutate(x=dosex1+(dosex2-dosex1)/2,fit=H(x))
+```
+
+```{r}
+
+rerf |> ggplot(aes(x=x,y=mortality,size=n)) + 
+  geom_point(color="blue") + 
+  geom_line(aes(y=fit),size=0.1) +
+  theme(legend.position="none")+labs(x="Dose in millisieverts",y="Cancer mortality rate",title="Cancer in atomic bomb survivors\nData: RERF")
+
+```

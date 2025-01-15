@@ -1,0 +1,47 @@
+---
+title: "disability"
+author: "GeoffRussell"
+date: "9/16/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r data}
+dft<-read_csv("disability.csv") %>% filter(Type=="Total")
+pts<-dft %>% filter(DisabilityLevel=="Serious") %>%
+  ggplot()+geom_col(aes(x=Age,y=Value),fill="blue",width=0.4)+
+  geom_text(aes(x=Age,y=Value+50,label=Value))+
+  annotate("text",x=1,y=680,hjust=0.2,label="Data: AIHW 2022 Prevalence of Disability",size=2)+
+  labs(x="Age",y="Number ('000)",title="Serious or Profound disability by age")
+pts
+png(paste0("disability-total-by-age.png"),width=1400,height=1000,units="px",res=300,type="cairo-png")
+print(pts)
+dev.off()
+
+df<-read_csv("disability.csv") %>% filter(Type!="Total")
+p<-df %>% ggplot()+geom_col(aes(x=Age,y=Value))+facet_grid(reorder(Type,Value)~.)+coord_flip()
+p
+png(paste0("disability-age.png"),width=1200,height=1200,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+
+p<-df %>% ggplot()+geom_bar(stat="identity",aes(x=Type,y=Value,fill=DisabilityLevel))+facet_grid(reorder(Age,Value)~.)+coord_flip()
+p
+png(paste0("disability-type.png"),width=1200,height=1200,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+seriousLT65<-df %>% filter(Age!="65+"&DisabilityLevel=="Serious")
+
+p<-df %>% ggplot()+geom_bar(stat="identity",aes(x=Type,y=Value,fill=Age))+coord_flip()+labs(x="",y="Number")
+p
+
+png(paste0("disability-color.png"),width=1200,height=1200,units="px",res=200,type="cairo-png")
+print(p)
+dev.off()
+
+```
+

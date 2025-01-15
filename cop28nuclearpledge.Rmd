@@ -1,0 +1,162 @@
+---
+title: "cop28nuclearpledge"
+author: "GeoffRussell"
+date: "2023-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+renewablePledge<-tibble(country=c("Albania",
+    "Andorra",
+    "Angola",
+    "Antigua and Barbuda",
+    "Argentina",
+    "Armenia",
+    "Australia",
+    "Austria",
+    "Azerbaijan",
+    "Bahamas (the)",
+    "Bangladesh",
+    "Barbados",
+    "Belgium",
+    "Belize",
+    "Benin",
+    "Bhutan",
+    "Bosnia Herzegovina",
+    "Brazil",
+    "Brunei Darussalam",
+    "Bulgaria",
+    "Burkina Faso",
+    "Burundi",
+    "Canada",
+    "Chad",
+    "Chile",
+    "Colombia",
+    "Comoros (the)",
+    "Costa Rica",
+    "Cote d'Ivoire",
+    "Croatia",
+    "Cuba",
+    "Cyprus",
+    "Czechia",
+    "Denmark",
+    "Dominican Republic (the)",
+    "El Salvador",
+    "Estonia",
+    "Eswatini",
+    "Ethiopia",
+    "Fiji",
+    "European Union",
+    "Finland",
+    "France",
+    "Gambia, The",
+    "Georgia",
+    "Germany",
+    "Ghana",
+    "Greece",
+    "Grenada",
+    "Guatemala",
+    "Guinea",
+    "Hungary",
+    "Iceland",
+    "Ireland",
+    "Italy",
+    "Jamaica",
+    "Japan",
+    "Jordan",
+    "Kenya",
+    "Kiribati",
+    "Kosovo",
+    "Kyrgyzstan",
+    "Latvia",
+    "Lebanon",
+    "Lesotho",
+    "Liechtenstein",
+    "Lithuania",
+    "Luxembourg",
+    "Malawi",
+    "Malaysia",
+    "Maldives",
+    "Mali",
+    "Malta",
+    "Mexico",
+    "Micronesia",
+    "Moldova",
+    "Monaco",
+    "Montenegro",
+    "Morocco",
+    "Mozambique",
+    "Namibia",
+    "Nauru",
+    "Netherlands",
+    "New Zealand",
+    "Nicaragua",
+    "Nigeria",
+    "North Macedonia",
+    "Norway",
+    "Oman",
+    "Papua New Guinea",
+    "Paraguay",
+    "Poland",
+    "Portugal",
+    "Romania",
+    "Rwanda",
+    "San Marino",
+    "Senegal",
+    "Serbia",
+    "Seychelles",
+    "Sierra Leone",
+    "Singapore",
+    "Slovak Republic",
+    "Slovenia",
+    "Somalia",
+    "Korea, Rep.",
+    "Spain",
+    "Sweden",
+    "Switzerland",
+    "Syria",
+    "Tajikistan",
+    "Thailand",
+    "Togo",
+    "Tunisia",
+    "UAE",
+    "Ukraine",
+    "United Kingdom",
+    "United States",
+    "Uruguay",
+    "Uzbekistan",
+    "Vanuatu",
+    "Yemen",
+    "Zambia",
+    "Zimbabwe"
+))
+nr<-length(renewablePledge$country)
+print(nr)
+```
+
+```{r}
+building<-tibble(country=c("Turkey","Egypt","Russian Federation","Bangladesh","China","India"))
+nuclearPledge<-tibble(country=c(
+  "United States",
+  "Bulgaria","Canada","Czechia","Finland","France","Ghana","Hungary","Japan",
+  "Korea, Rep.","Moldova","Mongolia","Morocco","Netherlands","Poland","Romania",
+  "Slovak Republic","Slovenia","Sweden","Ukraine",
+  "United Arab Emirates","United Kingdom"
+)) %>% arrange(country)
+both<-inner_join(nuclearPledge,renewablePledge)
+renOnly<-anti_join(renewablePledge,nuclearPledge)
+c<-bind_rows(building,nuclearPledge)
+dfpop<-read_csv("population2022.csv") %>% filter(date=="2022") %>% rename(population="SP.POP.TOTL")
+renewablePop <- dfpop %>% inner_join(renewablePledge) %>% arrange(country)
+rpop=renewablePop %>% summarise(total=sum(population))
+
+nuclearPop <- dfpop %>% inner_join(nuclearPledge) %>% arrange(country)
+npop=nuclearPop %>% summarise(total=sum(population))
+renonlyPop <- dfpop %>% inner_join(c) %>% arrange(country)
+rpop=renonlyPop %>% summarise(total=sum(population))
+```

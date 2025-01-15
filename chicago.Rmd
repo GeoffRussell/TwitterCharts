@@ -1,0 +1,24 @@
+---
+title: "chicago"
+author: "GeoffRussell"
+date: "2024-06-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Chicago nuclear plants 
+
+```{r}
+h<-24*365
+pvareapertwh<-1400 # based on bungala solar farm 800 ha 570 GWh
+cenergytwh<-((2277e6*h*0.9479)+(1797e6*h*0.98)+(2354e6*h*0.931)+(2347e6*h*0.978))/1e12
+pvarea<-pvareapertwh*cenergytwh
+# how much energy can 1GW of pv generate?
+twhpergw<-1e9*24*365*0.12/1e12 
+
+cenergytwh/twhpergw*100000
+```

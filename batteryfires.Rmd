@@ -1,0 +1,57 @@
+---
+title: "batteryfires"
+author: "GeoffRussell"
+date: "2024-10-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+Abbreviations: LIB - Li-ion battery; ESS - energy storage system ; BESS - battery energy storage system
+
+There is a battery failure database [here](https://storagewiki.epri.com/index.php/BESS_Failure_Incident_Database). It supplies a csv download button!
+
+
+```{r}
+# Reading in the table from Wikipedia
+df<-read_csv("Failure_DB_ListOct-2024.csv")
+df |> ggplot() + geom_histogram(aes(x=`Event Date`))
+```
+
+
+Other sources of data on battery fires are:
+
+1. [NYC](https://www.nyc.gov/office-of-the-mayor/news/574-24/mayor-adams-takes-new-actions-prevent-deadly-lithium-ion-battery-fires-promote-safe-e-bike#/0)
+
+This article reports: 
+
+~~~
+Since 2019, lithium-ion batteries have started 733 fires, killing 29 New Yorkers and injuring 442 more. Notably, in 2023, 133 fires started from lithium-ion batteries that were not charging, compared to 91 that occurred while they were.
+~~~
+
+2. [Sinking of the cargo ship Felicity Ace in 2022](https://www.nfpa.org/news-blogs-and-articles/nfpa-journal/2024/01/19/marine-battery-feature-spring-24)
+
+Many shippers of Li-ion ESS exclusively transport them on-deck to facilitate fire handling. 
+
+3. How do LIB risks compare with general bicycle risks?   
+
+Some [30 people](https://www.planetizen.com/news/2024/03/127763-nyc-bike-deaths-hit-23-year-high) died in NYC bike accidents in 2023.
+
+4. NSW Fire service did [a report in 2024](https://www.fire.nsw.gov.au/gallery/resources/SARET/FRNSW%20LiB%20fire%20data%202022-23.pdf)
+
+Of 301 fires at waste/recycling centres, only 10% involved LIB.
+
+~~~
+While no fatalities were reported in this period, incidents involving LiBs were 4 times more likely to result in injury than all
+fire and explosion incidents attended, with a rate of 11.4 injured persons reported per 100 incidents compared with 2.8
+injured persons reported per 100 fire and explosion incidents overall in 2022-23.
+~~~
+
+5. As of 2016, [3 serious aircraft fires](http://ansondg.net/downloads/file_Lithium_battery_accidents.pdf), 2 causing crashes in cargo planes killing 2 crew 
+in each case and other non-fatal problem during decent. 
+
+6. [Thermal Runaway Incidence Program](https://mytripportal.org/). As of 2023, TRIP has 769 accident records for its participating airlines. It's only been 
+running for 5 years, but has records going back to 2026. 

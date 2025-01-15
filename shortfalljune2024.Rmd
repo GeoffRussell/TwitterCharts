@@ -1,0 +1,53 @@
+---
+title: "shortfalljune"
+author: "GeoffRussell"
+date: "2024-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+```
+
+```{r cars}
+```
+
+```{r}
+options(scipen=99999)
+
+dodata<-function(fname,title,outfile1,outfile2) {
+  df<-read_csv(fname)
+  df$ofac=as.factor(df$ofac)
+  df$baseload=as.factor(df$baseload)
+  p<-df |> rename(OverbuildFactor=ofac) |> ggplot() + 
+  geom_col(aes(x=batterymax/1000,y=shortfall/1000,fill=OverbuildFactor,group=OverbuildFactor),position="dodge") + 
+  labs(x="Battery Size (gigawatts)",y="Electricity Shortfall (GW)",title=paste0("Impact of battery size, overbuild and baseload on\nelectricity shortfall for ",title,"\nrows are baseload levesl 0, 600MW, 1200MW\nSupply/Demand Data: OpenNem"))+
+  facet_grid(baseload~.)
+  p
+  dopng(outfile1,p,h=3000)
+
+  p<-df |> rename(OverbuildFactor=ofac) |> ggplot() + 
+  geom_col(aes(x=batterymax/1000,y=shortfall/1000,fill=baseload,group=baseload),position="dodge") + 
+  labs(x="Battery Size (gigawatts)",y="Electricity Shortfall (GW)",title=paste0("Impact of battery size, overbuild and baseload on\nelectricity shortfall ",title,"\nrows are for overbuild factors 1 through 3\nSupply/Demand Data: OpenNem"))+
+  facet_grid(OverbuildFactor~.)
+  p
+  dopng(outfile2,p,h=3000)
+}
+
+dodata("/home/geoff/LETTERS/JULIA/SAGrid/dfshortfallout.csv",
+      "South Australia 1st June - 9th June 2024",
+      "ShortfallOfacBatt-Bl.png",
+      "ShortfallBattBl-Ofac.png"
+      )
+dodata("/home/geoff/LETTERS/JULIA/SAGrid/dfshortfallout55D.csv",
+       "South Australia 16th May - 10th July 2024",
+      "ShortfallOfacBatt-Bl55D.png",  
+      "ShortfallBattBl-Ofac55D.png"
+      )
+```

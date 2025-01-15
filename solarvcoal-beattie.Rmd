@@ -1,0 +1,71 @@
+---
+title: "solar-v-coal-beattie"
+author: "GeoffRussell"
+date: "2024-10-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+source("PMT.R")
+```
+
+## Battery embodied carbon
+
+According to [IEA](https://iea.blob.core.windows.net/assets/4559e539-d8c4-41c1-b5e6-2a65d1e0cc50/EVLifeCycleAssessmentCalculatorMethodology.pdf) for EVs
+the embodied carbon is 90kg co2eq/kWh and 150Wh/kg
+
+```{r}
+gPerKWh<-90e3     # g co2eq/kWh
+bsize<-10   # kWh
+embodied<-10*gPerKWh
+lifespan=10    # years
+cyclesPerDay<-c(0.5,1)
+output<-cyclesPerDay*bsize*365*lifespan      # total kWh
+output
+embodied/output
+```
+
+
+## Regarding Ben Beattie's carbon payback for PV
+
+If we have a LCA figure of $x$ gms of $CO_2$ per kWh for a solar panel, then what is the embodied $CO_2$ per kW. 
+
+Let's look at a real panel. Longi LR5-72HBD-545M ... NOCT PMAX 407W. Let's assume 16% capacity factor. Panel weight 31.8 kg  
+
+```{r}
+lcaco2e<-c(23,83)   # g-co2e/kwh  ... based on UNECE LCA
+pmax<-407     # power of panel (NOCT) Longi as above
+df<-tibble()
+for(lca in lcaco2e) {
+for(cfp in c(10,13,16,20)) {
+  cf<-cfp/100
+  for(lifetime in c(20,25,30)) {
+    lifekWh<-pmax*24*365*cf*lifetime/1e3 # lifetime kWh
+    lifeco2e<-lifekWh*lca/1e3    # lifetime kgs co2e 
+    kgco2ePerkW<-lifeco2e*1000/pmax  # convert to kg co2e per kW 1000/pmax 
+    kgco2ePerkW
+    df<-bind_rows(df,tibble('lcaco2e'=c(lca),'cf'=c(cf),'lifetime'=c(lifetime),'kgPerkW'=c(kgco2ePerkW)))
+  }
+}
+}
+df
+df$lifetime=as.factor(df$lifetime) 
+p<-df |> ggplot() + 
+  geom_col(aes(x=cf,y=kgPerkW,fill=lifetime),position=position_dodge())+
+  geom_text(aes(x=cf,y=kgPerkW,label=comma(kgPerkW)),vjust=-0.5,position=position_dodge())+facet_grid(lcaco2e~lifetime)+
+  labs(x="Capacity factor",y="Kg-CO2e-per-kWp",title="Embodied carbon in PV panels\nBased on UNECE estimate of \n23-83 g-co2e per kwh Lifecycle emissions")
+  ylim(c(0,5000))
+p
+
+png("embodied-co2-pv.png",width=3000,height=2000,units="px",res=300)
+print(p)
+dev.off()
+
+
+  
+  
+#  geom_text(aes(x=cf,y=kgPerkW,label=comma(kgPerkW)),group=lifetime,position=position_dodge(width=0.9))
+```

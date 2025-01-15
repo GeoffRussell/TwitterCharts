@@ -1,0 +1,84 @@
+---
+title: "finance-equations"
+author: "GeoffRussell"
+date: "2024-11-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999)
+comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+```
+
+## Present value of annuity 
+
+From [Investopedia](https://www.investopedia.com/terms/p/present-value-annuity.asp)
+	
+$$
+PV = PMT × \frac{1 − ( \frac{1}{( 1 + 𝑟 )^𝑛})}{r}
+$$
+
+```{r}
+PMT=50000
+drate=c(0.06)
+years=25
+pva<-function(PMT,drate,years) {
+  PMT * (1 - (1/(1+drate)^years))/drate
+}
+comma(pva(PMT,drate,years))
+comma(PMT*years)
+```
+
+```{r annuity}
+PMT=17e9
+drate=c(0.07)
+years=27
+pva<-function(PMT,drate,years) {
+  PMT * (1 - (1/(1+drate)^years))/drate
+}
+comma(pva(PMT,drate,years))
+comma(PMT*years)
+  
+```
+
+## Discounted cash flow 
+
+This is supposed to allow you to compare projects taking account of the time value of money.
+
+$$
+DCF = \frac{CF_1}{(1+r)^1} + 
+\frac{CF_2}{(1+r)^2} + \ldots
+\frac{CF_n}{(1+r)^n} 
+$$
+
+
+We can subtract the initial investment $I$ to find the *net present value* (NPV) of the project.
+
+
+$$
+NPV = \frac{CF_1}{(1+r)^1} + 
+\frac{CF_2}{(1+r)^2} + \ldots
+\frac{CF_n}{(1+r)^n} - I 
+$$
+
+Note that in the real world, the sources of uncertainty are both in the $CF$ estimates as well as the discount rate $r$.
+
+
+## ISP costs 
+
+Using the Frontier Economics report 2024. 
+
+```{r}
+cf<-c(15,15,16,16,16,16,16,17,17,18,19,21,22,23,24,25,25,25,25,25,26,27,27,28,28,30,32)
+year<-seq(25,51,1)-24
+r<-c(0.03,0.07,0.10)
+n<-length(cf)
+ny<-length(year)
+s=0
+for (y in year) {
+  s=s+cf[y]/((1+r)^y)
+}
+scosts<-sum(cf)
+```
+

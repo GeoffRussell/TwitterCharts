@@ -1,0 +1,54 @@
+---
+title: "ICN-process"
+author: "GeoffRussell"
+date: "2023-07-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(stringr)
+library(lubridate)
+```
+
+```{r}
+df<-tibble(
+  x1="",
+  x2="",
+  x3="",
+  x4="",
+  x5="",
+  x6="",
+  x7="",
+  x8="",
+  x9="",
+  link=""
+)
+xxx=""
+root <- paste0("https://register.oric.gov.au/")
+for(i in seq(7001,9000)) {
+  url <- paste0(root,"PrintCorporationSearch.aspx?corporationName=&icn=",i)
+  lines <- readLines("scrape_final.js")
+  lines[1] <- paste0("var url ='", url ,"';")
+  writeLines(lines, "scrape_final.js")
+
+## Download website
+  system("phantomjs scrape_final.js")
+
+### use Rvest to scrape the downloaded website.
+  html <- read_html("1.html") 
+  td <- html %>% html_nodes('td')
+  tdhr <- html %>% html_nodes('td>a')
+  txt<-html_text(td)
+  txtr<-html_attr(tdhr,"href")
+  if (!is.na(txtr[1])) {
+    url2<-paste0(root,txtr[1])
+    print(url2)
+    df<-bind_rows(df,tibble(x1=txt[1],x2=txt[2],x3=txt[3],x4=txt[4],x5=txt[5],x6=txt[6],x7=txt[7],x8=txt[8],x9=txt[9],link=txtr[1]))
+  }
+}
+write_csv(df,"corporations-list.csv",append=TRUE)
+```
+

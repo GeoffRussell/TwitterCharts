@@ -1,0 +1,30 @@
+---
+title: "NEMGen"
+author: "GeoffRussell"
+date: "2/13/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+## Data 
+
+```{r data}
+file<-"/home/geoff/ARTICLES/STATS/RBatteries/NEM_Generation_Information_January_2023.xlsx"
+excel_sheets(file)
+ng<-read_excel(file,sheet="ExistingGeneration&NewDevs",skip=1) %>%
+  mutate(MW=as.numeric(`Nameplate Capacity (MW)`)) 
+tech<-ng %>% select(`Technology Type`) %>% unique() 
+p<-ng %>% filter(`Asset Type`=="Existing Plant"& !is.na(`MW`)) %>%
+  ggplot()+geom_col(aes(x=`Technology Type`,y=`MW`)) + coord_flip()
+p
+q<-ng %>% filter(`Asset Type`=="Existing Plant"& !is.na(`MW`)) %>%
+  ggplot()+geom_col(aes(x=`Fuel Type`,y=`MW`)) + coord_flip()
+q
+
+
+```

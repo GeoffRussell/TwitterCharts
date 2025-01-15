@@ -1,0 +1,171 @@
+---
+title: "SA-June2024"
+author: "GeoffRussell"
+date: "2024-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+comma<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+scaleRight<-100/4000
+dir<-"~/ARTICLES/STATS/MasteringShiny/SouthAustralianPower/SouthAustralianElectricity/"
+
+```
+
+## Data 
+
+```{r data}
+df<-read_csv("dfsum-nobl-BATT11,400MW-FAC2-June2024.csv")
+dfbl<-read_csv("dfsum-BL1200MW-BATT11,400MW-FAC2-June2024.csv")
+dfbl600<-read_csv("dfsum-BL600MW-BATT11,400MW-FAC2-June2024.csv")
+```
+
+```{r}
+p<-df |>  filter(day(Time)<10) |> ggplot() +
+  geom_line(aes(x=Time,y=demand),color="black")+
+  geom_line(aes(x=Time,y=renew),color="green")+
+  annotate('text',x=ymd_hms("2024-06-04 00:00:00"),y=2500,label="Demand",hjust=0,color="black")+
+  annotate('text',x=ymd_hms("2024-06-06 00:00:00"),y=0,label="Wind+Solar",hjust=0,color="green",vjust=0)+
+  labs(x="",y="Demand (megawatts)",title="South Australia, beginning of June 2024")
+p
+dopng("June24-base.png",p)
+
+p<-df |>  filter(day(Time)<10) |> ggplot() +
+  geom_line(aes(x=Time,y=demand),color="black")+
+  geom_line(aes(x=Time,y=dblrenew),color="green")+
+  annotate('text',x=ymd_hms("2024-06-04 00:00:00"),y=2500,label="Demand",hjust=0,color="black")+
+  annotate('text',x=ymd_hms("2024-06-05 12:00:00"),y=0,label="Double the 2024 wind+solar",hjust=0,color="green",vjust=0)+
+  labs(x="",y="Demand (megawatts)",title="South Australia, beginning of June 2024,\nbut with double the wind and solar")
+p
+dopng("June24-doublebase.png",p)
+```
+```{r}
+cumShort<-as.numeric(df |>  filter(day(Time)<10) |> summarise(s=sum(shortFall)))
+p<-df |>  filter(day(Time)<10) |> ggplot() +
+  geom_col(aes(x=Time,y=shortFall*12),color="grey80")+
+  geom_line(aes(x=Time,y=demand),color="black")+
+#  geom_line(aes(x=Time,y=renew),color="green",linetype=3)+
+  geom_line(aes(x=Time,y=dblrenew),color="green")+
+  geom_line(aes(x=Time,y=batteryStatus/11380*4000),color="red",linetype=4)+
+  annotate('text',x=ymd_hms("2024-06-07 00:00:00"),y=2300,label="Demand",hjust=0,color="black")+
+  annotate('text',x=ymd_hms("2024-06-05 18:00:00"),y=3500,label="Double the 2024 wind+solar",hjust=0,color="green",vjust=0)+
+  annotate('text',x=ymd_hms("2024-06-07 12:00:00"),y=500,label="Blackouts (unmet demand)",hjust=0.5,color="grey40",vjust=0)+
+  scale_y_continuous(sec.axis=sec_axis(~.*scaleRight,breaks=seq(0,100,10),name="battery charge (%)"))+
+  labs(x="",y="Demand (megawatts)",title="South Australia, June 2024, with double the wind and solar\nAND 11.4 gigaWatt-hours of big batteries\n(over 20 times the current battery level) ")+
+  annotate('text',x=ymd_hms("2024-06-05 00:00:00"),y=4500,label=paste0("Cumulative shortfall: ",comma(cumShort/1000)," gigaWatt hours"),hjust=0)+
+  theme(axis.ticks.y.right = element_line(color = "red"),
+        axis.text.y.right = element_text(color = "red"),
+        axis.title.y.right = element_text(color = "red"))
+p
+dopng("June24-base-batteries.png",p)
+```
+
+
+```{r}
+doplot<-function(file,bl,batt,ofac) {
+  df<-read_csv(paste0(dir,file))
+  cumShort<-as.numeric(df |>  filter(day(Time)<10) |> summarise(s=sum(shortFall)))
+  
+  gwb<-paste0(comma(batt/1000),"GW")
+  
+  p<-df |>  filter(day(Time)<10) |> ggplot() +
+    geom_col(aes(x=Time,y=shortFall*12),color="grey80")+
+    geom_line(aes(x=Time,y=demand),color="black")+
+#  geom_line(aes(x=Time,y=renew),color="green",linetype=3)+
+    geom_line(aes(x=Time,y=dblrenew),color="green")+
+    geom_line(aes(x=Time,y=batteryStatus/batt*4000),color="red",linetype=4)+
+    annotate('text',x=ymd_hms("2024-06-07 00:00:00"),y=2300,label="Demand",hjust=0,color="black")+
+    annotate('text',x=ymd_hms("2024-06-05 18:00:00"),y=3500,label="Double the 2024 wind+solar",hjust=0,color="green",vjust=0)+
+    annotate('text',x=ymd_hms("2024-06-05 12:00:00"),y=200,label=ifelse(cumShort>0,"Shortfalls (unmet demand)",""),hjust=0.5,color="grey40",vjust=0)+
+    {if (bl>0) {
+    geom_hline(aes(yintercept=bl),color="purple")
+    }}+ 
+    {if (bl>0) {
+    annotate('text',x=ymd_hms("2024-06-01 00:00:00"),y=bl-250,label=paste0("nuclear baseload ,",bl,"MW"),hjust=0,color="purple",vjust=0)
+    }}+ 
+    scale_y_continuous(sec.axis=sec_axis(~.*scaleRight,breaks=seq(0,100,10),name="battery charge (%)"))+
+    labs(x="",y="Demand (megawatts)",title=paste0("South Australia, June 2024, with ",ofac," times the 2024 wind and solar\nAND ",gwb," of big batteries\nWith ",bl,"MW of nuclear as baseload "))+
+    annotate('text',x=ymd_hms("2024-06-05 00:00:00"),y=4500,label=paste0("Cumulative shortfall: ",comma(cumShort/1000)," GW hours"),hjust=0) +
+    theme(axis.ticks.y.right = element_line(color = "red"),
+        axis.text.y.right = element_text(color = "red"),
+        axis.title.y.right = element_text(color = "red"))
+  p
+}
+p<-doplot("dfsum-BL1200MW-BATT5,500MW-FAC2-June2024.csv",1200,5500,2)
+p
+dopng("June24-batteries5500baseload1200FAC2.png",p)
+
+p<-doplot("dfsum-BL1200MW-BATT11,500MW-FAC2-June2024.csv",1200,11500,2)
+p
+dopng("June24-batteries11500baseload1200FAC2.png",p)
+
+p<-doplot("dfsum-BL600MW-BATT11,500MW-FAC2-June2024.csv",600,11500,2)
+p
+dopng("June24-batteries11500baseload600FAC2.png",p)
+
+p<-doplot("dfsum-BL600MW-BATT5,500MW-FAC2-June2024.csv",600,5500,2)
+p
+dopng("June24-batteries5500baseload600FAC2.png",p)
+
+p<-doplot("dfsum-nobl-BATT11,500MW-FAC2-June2024.csv",0,11500,2)
+p
+dopng("June24-batteries11500nobaseloadFAC2.png",p)
+
+p<-doplot("dfsum-BL1200MW-BATT5,500MW-FAC1.4-June2024.csv",1200,5500,1.4)
+p
+dopng("June24-batteries5500baseload1200-FAC14.png",p)
+```
+## OBSOLETE CODE
+
+```{r}
+cumShortBl<-as.numeric(dfbl |>  filter(day(Time)<10) |> summarise(s=sum(shortFall)))
+p<-dfbl |>  filter(day(Time)<10) |> ggplot() +
+  geom_col(aes(x=Time,y=shortFall*12),color="grey80")+
+  geom_line(aes(x=Time,y=demand),color="black")+
+#  geom_line(aes(x=Time,y=renew),color="green",linetype=3)+
+  geom_line(aes(x=Time,y=dblrenew),color="green")+
+  geom_line(aes(x=Time,y=batteryStatus/11380*4000),color="red",linetype=4)+
+  annotate('text',x=ymd_hms("2024-06-07 00:00:00"),y=2300,label="Demand",hjust=0,color="black")+
+  annotate('text',x=ymd_hms("2024-06-05 18:00:00"),y=3500,label="Double the 2024 wind+solar",hjust=0,color="green",vjust=0)+
+  annotate('text',x=ymd_hms("2024-06-05 12:00:00"),y=500,label="No Blackouts!",hjust=0.5,color="grey40",vjust=0)+
+  geom_hline(aes(yintercept=1200),color="purple")+
+  annotate('text',x=ymd_hms("2024-06-04 12:00:00"),y=1250,label="nuclear baseload 2x600MW CANDU",hjust=0,color="purple",vjust=0)+
+  scale_y_continuous(sec.axis=sec_axis(~.*scaleRight,breaks=seq(0,100,10),name="battery charge (%)"))+
+  labs(x="",y="Demand (megawatts)",title="South Australia, June 2024, with double the wind and solar\nAND 11.4 gigaWatt-hours of big batteries\n(over 20 times the current battery level)\nAND 1.2 GW of nuclear as baseload ")+
+  annotate('text',x=ymd_hms("2024-06-05 00:00:00"),y=4500,label=paste0("Cumulative shortfall: ",comma(cumShortBl/1000)," gigaWatt hours"),hjust=0) +
+  theme(axis.ticks.y.right = element_line(color = "red"),
+        axis.text.y.right = element_text(color = "red"),
+        axis.title.y.right = element_text(color = "red"))
+p
+dopng("June24-batteries1p2baseload.png",p)
+
+
+cumShortBl600<-as.numeric(dfbl600 |>  filter(day(Time)<10) |> summarise(s=sum(shortFall)))
+p<-dfbl600 |>  filter(day(Time)<10) |> ggplot() +
+  geom_col(aes(x=Time,y=shortFall*12),color="grey80")+
+  geom_line(aes(x=Time,y=demand),color="black")+
+#  geom_line(aes(x=Time,y=renew),color="green",linetype=3)+
+  geom_line(aes(x=Time,y=dblrenew),color="green")+
+  geom_line(aes(x=Time,y=batteryStatus/11380*4000),color="red",linetype=4)+
+  annotate('text',x=ymd_hms("2024-06-07 00:00:00"),y=2300,label="Demand",hjust=0,color="black")+
+  annotate('text',x=ymd_hms("2024-06-05 18:00:00"),y=3500,label="Double the 2024 wind+solar",hjust=0,color="green",vjust=0)+
+  annotate('text',x=ymd_hms("2024-06-05 12:00:00"),y=300,label="Blackouts (unmet demand)",hjust=0.5,color="grey40",vjust=0)+
+  geom_hline(aes(yintercept=600),color="purple")+
+  annotate('text',x=ymd_hms("2024-06-04 12:00:00"),y=750,label="nuclear baseload 600MW CANDU",hjust=0,color="purple",vjust=0)+
+  scale_y_continuous(sec.axis=sec_axis(~.*scaleRight,breaks=seq(0,100,10),name="battery charge (%)"))+
+  labs(x="",y="Demand (megawatts)",title="South Australia, June 2024, with double the wind and solar\nAND 11.4 gigaWatt-hours of big batteries\n(over 20 times the current battery level)\nAND 600 MW of nuclear as baseload ")+
+  annotate('text',x=ymd_hms("2024-06-05 00:00:00"),y=4500,label=paste0("Cumulative shortfall: ",comma(cumShortBl600/1000)," gigaWatt hours"),hjust=0) +
+  theme(axis.ticks.y.right = element_line(color = "red"),
+        axis.text.y.right = element_text(color = "red"),
+        axis.title.y.right = element_text(color = "red"))
+p
+
+dopng("June24-batteries1p2baseload600BL.png",p)
+```

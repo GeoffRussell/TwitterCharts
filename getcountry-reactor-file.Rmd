@@ -17,7 +17,6 @@ dfc<-read_csv("country-reactors.csv")
 
 ```{r test}
 url<-"https://pris.iaea.org/PRIS/CountryStatistics/CountryDetails.aspx?current="
-xxx<-tibble()
 
 getdata<-function(vec) {
   ix=1

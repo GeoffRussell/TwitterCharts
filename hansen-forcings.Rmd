@@ -1,0 +1,53 @@
+---
+title: "hansen-forcings"
+author: "GeoffRussell"
+date: "2023-12-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Warming in the pipeline 
+
+The equations here come from Hansen et al "Global warming in the pipeline" 2023. Specifically equation (4) and
+Table 1. We use basic data [from ESRL Global Monitoring Lab](https://gml.noaa.gov/ccgg/trends/)
+
+```{r forcings2022}
+co2ppm<-420.46  
+ch4ppb<-1919
+n2oppb<-336.75
+cfc11<-0.221
+cfc12<-0.491
+c<-co2ppm
+m<-ch4ppb
+n<-n2oppb
+x<-cfc11
+y<-cfc12
+
+c0<-280
+m0<-741
+n0<-280
+x0<-0
+y0<-0
+
+f<-function(c) {
+  4.996 * log(c+(0.0005*c^2))
+}
+g<-function(m,n) {
+  0.5 * log(1+2*10^(-5)*(m*n)^0.75)
+}
+
+FCO2<-f(c)-f(c0)
+FCH4<-0.0406*(sqrt(m)-sqrt(m0))-(g(m,n0)-g(m0,n0))
+FN2O<-0.136*(sqrt(n)-sqrt(n0))-(g(m0,n)-g(m0,n0))
+FCFC11<-0.264*(x-x0)
+FCFC12<-0.323*(y-y0)
+Fe<-function() {
+  # this needs a bunch of data I don't understand ... bye for now
+  
+}
+
+
+```

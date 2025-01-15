@@ -1,0 +1,113 @@
+---
+title: "ISP2024"
+author: "GeoffRussell"
+date: "2024-06-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+comma<-function(x) prettyNum(signif(x,digits=5),big.mark=",")
+```
+
+## Costs  
+
+We use the "Optimal Development Path" case and go to 2049-50.
+
+```{r}
+dfc<-read_csv("ISPDiscountedAnnualCostsCDP14.csv") 
+# We slice from 2023-24 to 2049-50 ... drop the last 2 columns
+lastc<-29
+gf<-as.numeric(dfc[1,3:lastc])
+fom<-as.numeric(dfc[2,3:lastc])
+fuel<-as.numeric(dfc[3,3:lastc])
+VOM<-as.numeric(dfc[4,3:lastc])
+DSPUSE<-as.numeric(dfc[5,3:lastc])
+ResAug<-as.numeric(dfc[6,3:lastc])
+FlowAug<-as.numeric(dfc[7,3:lastc])
+Emissions<-as.numeric(dfc[8,3:lastc])
+cfall<-gf+fom+fuel+VOM+DSPUSE+ResAug+FlowAug+Emissions
+cfdf<-data.frame("Generator Costs"=gf,"All Costs"=cfall)
+findnpv<-function(cf,title) {
+  year<-seq(1,lastc-3+1)
+  r<-c(0.03,0.07,0.10)
+  s=0
+  for (y in year) {
+    s=s+cf[y]/((1+r)^y)
+  }
+  scosts<-sum(cf)
+  cat(paste0("NPV ",title," ",comma(s[2]/1000)," billion. Sum of costs: ",comma(scosts/1000)," billion"))
+}
+findnpv(cfdf$`Generator.Costs`,colnames(cfdf)[1])
+findnpv(cfdf$`All.Costs`,colnames(cfdf)[2])
+```
+
+## Growth in renewables 
+
+```{r wind}
+df<-tibble(
+"year"=seq(2009,2050,1),
+"OnShoreWind"=c(481,1903,2114,2554,3284,3503,3609,3952,4636,5598,6638,8385,9281,10095,10469,11580,12941,14740,22598,27367,34061,39639,41876,43763,45357,46079,52509,53491,53413,53350,52568,52049,51361,51175,51543,50832,51024,57460,57802,57404,60944,61368),
+"UtilitySolar"=c(0,0,0,0,0,102,155,211,318,2046,3071,4829,6042,7468,7923,9152,9673,11144,12392,12491,13213,17355,19846,21062,21911,23222,25237,27209,29501,29453,29303,29449,29923,32768,38971,41772,46010,48885,48765,50615,52911,55490),
+"RooftopSolar"=c(49,217,927,1655,2485,3202,3872,4452,5239,6540,8325,10797,13880,16475,19193,21308,23482,25656,27916,30593,33322,36062,38515,40889,43439,45835,48327,50769,53108,55428,57785,60155,62437,64778,67028,69286,71808,74545,77218,80001,82840,85742),
+"Deep"=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,6,6,6,28,28,28,28,34,34,42,42,42,42,42,42,42,45,45,45,45,45,51,51),
+"Medium"=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,10,11,13,13,27,27,27,27,27,29,28,28,29,28,28,28,28,28,29,28,29,27,26,26,28),
+"Shallow"=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,12,12,12,12,12,14,15,15,16,18,18,18,18,18,18,18,17,17,17,16,8,8,8,8,8),
+"CER"=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4,5,7,10,13,17,21,26,31,37,43,49,56,63,70,78,87,95,105,114,124,134,144)
+)
+dfb<-df %>% 
+  mutate(UtilityBattery=Deep+Medium+Shallow)  %>%
+  mutate(UtilityBatteryGrowth=UtilityBattery-lag(UtilityBattery,default=0))  %>%
+  mutate(CERGrowth=CER-lag(CER,default=0)) 
+df2<-df %>% 
+  mutate(Wind=OnShoreWind-lag(OnShoreWind,default=0))  %>%
+  mutate(Solar=UtilitySolar-lag(UtilitySolar,default=0)) 
+df5<-df %>% 
+  mutate(Wind=OnShoreWind-lag(OnShoreWind,n=5,default=0))  %>%
+  mutate(Solar=UtilitySolar-lag(UtilitySolar,n=5,default=0)) 
+df10<-df %>% 
+  mutate(WindE=OnShoreWind*24*365*0.33/26e6)  %>%
+  mutate(SolarE=(UtilitySolar+RooftopSolar)*24*365*0.18/26e6) %>%
+  mutate(SolarAdd=SolarE-lag(SolarE,n=10,default=0)) %>%
+  mutate(WindAdd=WindE-lag(WindE,n=10,default=0)) %>%
+  mutate(WPlusS=WindAdd+SolarAdd)
+  
+pg10<-df10 %>% ggplot()+geom_col(aes(x=year,y=WPlusS),fill="orange")+
+  geom_hline(aes(yintercept=2.7),color="blue",linetype="dotdash")+
+  geom_text(aes(x=2030,y=0.5,label="Data: AEMO ISP 2024",hjust=0,vjust=1))+
+  geom_text(aes(x=2010,y=2.5,label="Finland 2013-2023\n(World's fastest to date)",hjust=0,vjust=1))+
+  geom_text(aes(x=2010,y=6,label="Height of each bar is the\nMWh/person/year\nof wind+solar energy\nadded in the\ndecade preceeding it",hjust=0,vjust=1))+
+  labs(x="",y="MWh/person/year",title="ISP 2024: Targets for 10 year growth rate")
+pg10
+png("ISP2024-decade-targets.png",width=1800,height=1200,units="px",res=300,type="cairo-png")
+print(pg10)
+dev.off()
+
+dfl<-df2 %>%  pivot_longer(cols=`Wind`:`Solar`,names_to="Technology",values_to="MW")
+p<-dfl %>% ggplot + geom_col(aes(x=year,y=MW,fill=Technology,group=Technology),position="dodge")+
+  geom_vline(aes(xintercept=2024))+
+  geom_text(aes(x=year,y=MW+30,label=MW),size=2)+
+  annotate('text',x=2015,y=5000,label="History\nto\ndate")+
+  annotate('text',x=2040,y=7000,label="Plan/Prediction")+
+  labs(x="",title="ISP 2024 Annual Growth Increments (OnShore Wind+Utility Solar)\n(From ISP 2024 Figure 14)")
+p
+png("ISP2024-growthIncrements-wind-solar.png",width=1800,height=1200,units="px",res=300,type="cairo-png")
+print(p)
+dev.off()
+
+dflb<-dfb %>%  mutate(HomeGrowth=CERGrowth) %>% pivot_longer(cols=c(`UtilityBatteryGrowth`,`HomeGrowth`),names_to="Technology",values_to="GWh")
+p<-dflb %>% ggplot + geom_col(aes(x=year,y=GWh,fill=Technology,group=Technology),position="dodge")+
+  geom_vline(aes(xintercept=2024))+
+  annotate('text',x=2015,y=5,label="History\nto\ndate")+
+  annotate('text',x=2040,y=15,label="Plan/Prediction")+
+  labs(y="giga-watt-hours",x="",title="ISP Annual Growth Increments (Utility Batteries + Home Batteries)\n(From ISP2024 Figure 19, data starting in 2024-5)")
+p
+png("ISP2024-growthIncrements-batteries.png",width=1800,height=1200,units="px",res=300,type="cairo-png")
+print(p)
+dev.off()
+
+
+   
+ 
+```

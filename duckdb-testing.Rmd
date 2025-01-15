@@ -1,0 +1,52 @@
+---
+title: "duckdb-testing"
+author: "GeoffRussell"
+date: "2024-01-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(duckdb)
+library(DBI)
+```
+
+# Connect using DBI
+
+This is a connection to a PostgreSQL database .
+
+
+
+```{r}
+con <- duckdb::dbConnect(
+  RPostgres::Postgres(),
+  dbname = "ajp-policy", 
+  host = "localhost",
+  user = "geoff",
+  password = "cusltimpgpw"
+)
+system.time({
+atoms<-con |> 
+  dbReadTable("atoms") |> 
+  as_tibble()
+})
+str(atoms)
+str(con)
+
+```
+
+Now lets create a duckdb database and load a table.
+
+```{r}
+duckcon <- DBI::dbConnect(duckdb::duckdb(),"DuckDB")
+#dbWriteTable(duckcon,"atoms",atoms)
+```
+```{r}
+dbListTables(duckcon)
+adb<-tbl(duckcon,"atoms")
+```
+```{r}
+adb %>% select(akey)
+dbDisconnect(duckcon,shutdown=TRUE)
+```

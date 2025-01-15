@@ -1,0 +1,27 @@
+---
+title: "testfunction"
+author: "GeoffRussell"
+date: "2025-01-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r data}
+df<-tribble(
+  ~Year,~'Reference Unit Power (MWe)',~'Electricity Supplied (GWh)',~'Annual Time Online (Hours)',
+  2000, 800, 2000.8, 2698,
+  2001, 850, 2100.8, 3698,
+  2002, 850, 2300.8, 4698
+)
+
+ccc<-c('Reference Unit Power (MWe)','Annual Time Online (Hours)','Electricity Supplied (GWh)')
+df |> pivot_longer(cols=ccc) |> select(Yeark)
+```
+
+
+
+

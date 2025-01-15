@@ -11,8 +11,12 @@ output:
 
 Thorcon have a great chart, first version by Robert Hargraves and redone by Jack Devanney, which shows
 the various electricity inequalities between different regions.  This *markdown* file will
-do yet another version using BP World Energy Statistics 2021. Most of the code here comes from
-other analyses I've done of the BP data. 
+do yet another version using Energy Institute World Energy Statistics 2023. 
+
+The first version of this code back in 2021 used the BP data but this data is now being published 
+by the Energy Institute; happily with almost the same format.
+
+Most of the code here comes from other analyses I've done of the BP data. 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -25,17 +29,21 @@ library(RColorBrewer)
 comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
 comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 comma2<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+pop50<-9600
 ```
 
-First read the data. Hopefully, we can just run this script again when the next version of the BP statistics
-are released.  We use the 2020 global population figure from [Worldometers](https://www.worldometers.info/world-population/world-population-by-year/).
+First read the data. BP Energy Statistics is now the *Energy Institute*. 
+
+We use the 2022 global population figure from [Worldometers](https://www.worldometers.info/world-population/world-population-by-year/).
 
 
 ```{r data}
+thisyear<-"2022"
 bpfile<-"bp-stats-review-2021-all-data.xlsx"
+bpfile<-"Statistical_Review_of_World_Energy_2023-x.xlsx"
 s21<-excel_sheets(bpfile)
 print(s21)
-worldPop20<-7.795e9
+worldPop23<-8.1e9
 ```
 We add some miscellaneous functions here.
 
@@ -120,7 +128,7 @@ getTotalTWhForList<-function(countries,years=seq(1975,2021)) {
 # Here's a couple of test calls
 tgetpop<-getpop("Australia")(1975:2000)
 tgetPopForList<-getPopForList(c("Australia","Germany","France","US"))
-mergePopData<-function(.data,countries,years=c(2021)) {
+mergePopData<-function(.data,countries,years=c(2022)) {
     dfc<-getPopForList(countries,years)
     .data %>% filter(Country %in% countries) %>% left_join(dfc)
 }
@@ -137,27 +145,32 @@ messy because of the way BP name things.
 ```{r }
 # plenty of data juggling due to how read_excel names its columns
 # this code will have to change in 2022!
-countryFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
+countryFilter<-function(.data,name,startyear="1975",endyear="2022...39") {
   rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
     filter(!grepl("^Total ",Country)) %>%  
     filter(!grepl("OECD",Country)) %>%  
     filter(!grepl("European Union",Country)) %>%  
     filter(!grepl("^of which",Country)) %>% 
-    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
-    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+    select(Country,'Type',startyear:endyear) %>% rename('2022'=endyear) %>% 
+    pivot_longer(startyear:'2022',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
 }
-worldTotalFilter<-function(.data,name,startyear="1975",endyear="2020...57") {
+worldTotalFilter<-function(.data,name,startyear="1975",endyear="2022...39") {
   rename(.data,Country=`Terawatt-hours`) %>% mutate(Type=name) %>% filter(!is.na(Country)) %>% 
     filter(grepl("^Total World",Country))  %>% 
-    select(Country,'Type',startyear:endyear) %>% rename('2020'=endyear) %>% 
-    pivot_longer(startyear:'2020',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
+    select(Country,'Type',startyear:endyear) %>% rename('2022'=endyear) %>% 
+    pivot_longer(startyear:'2022',names_to="yy",values_to="TWh") %>% filter(!is.na(TWh))
 }
 getSheet<-function(sheetname,cols,label,startyear="1975",filter=countryFilter) {
-    endyear<-paste0("2020...",toString(cols-3))
-    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1))) %>%
+    endyear<-paste0("2022...",toString(cols-2))
+    read_excel(bpfile,sheet=sheetname,skip=2,na='n/a',col_types=c('text',rep('numeric',cols-1),'skip')) %>%
             filter(label,startyear=startyear,endyear=endyear) %>%
             mutate(Year=as.numeric(yy)) %>% select(-yy) 
 }
+```
+
+```{r}
+xxx<-read_excel(bpfile,sheet="Electricity Generation",skip=2,na='-',col_types=c('text',rep('numeric',40),'skip'))
+yyy<-getSheet("Electricity Generation",41,'Electricity',startyear="1985")
 ```
 
 We won't to get per capita electricity by country, but the BP data has plenty of data rows with
@@ -169,9 +182,10 @@ We will total up the population covered by the *Country* data and then just allo
 the global population to the *Other* data.
 
 ```{r}
+
 countryTWh<-bind_rows(
-    getSheet("Electricity Generation ",40,'Electricity',startyear="1985"),
-) %>% filter(Year==2020) %>% select(Country,TWh)
+    getSheet("Electricity Generation",41,'Electricity',startyear="1985"),
+) %>% filter(Year==thisyear) %>% select(Country,TWh)
 write_csv(countryTWh,"country-data.csv")
 countryTWh %>% summarise(s=sum(TWh))
 otherTWh <- countryTWh %>% filter(grepl("Other|Eastern Africa|Middle Africa|Central America|Western Africa",Country))
@@ -183,7 +197,7 @@ otherSum<-otherTWh %>% summarise(sum(TWh))
 
 countryTWh <- countryTWh %>% removeMissing(dfpop)
 write_csv(countryTWh,"country-data-stripped.csv")
-countryTotalMWhPerCap<-getPopForList(countryTWh$Country,2021) %>% left_join(countryTWh) %>%
+countryTotalMWhPerCap<-getPopForList(countryTWh$Country,2022) %>% left_join(countryTWh) %>%
   mutate(totalMWhPerCap=TWh*1e12/Popn/1e6) %>% # NB this is an annual figure
   select(Country,totalMWhPerCap)
 ```
@@ -227,7 +241,7 @@ dfg %>% summarise(wPop=sum(Population))
 At this point `dfg` is missing the *other* information.
 
 ```{r}
-missingPop<-(worldPop20/1e6-as.numeric(dfg %>% summarise(sum(Population))))*1e6
+missingPop<-(worldPop23/1e6-as.numeric(dfg %>% summarise(sum(Population))))*1e6
 missingTWh<-as.numeric(otherSum)
 restOfWorld<-tribble(
     ~Region,~Population,~PerCapPower, 
@@ -265,7 +279,7 @@ dfsmall <- df %>% filter(!Region %in% bigRegionList)
                            
 dfr<-tribble(
   ~xmin,~xmax,~ymin,~ymax,
-   0,    worldPop20/1e6,0,etarget
+   0,    worldPop23/1e6,0,etarget
 )
 p<-df %>% ggplot()+
   geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
@@ -277,13 +291,13 @@ p<-df %>% ggplot()+
   geom_text(aes(x=xmin+60,y=ymax+110,label=Region,hjust=0),size=2)+
   geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapPower),"w"),hjust=0),size=2)+
   geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
-  annotate('text',x=1000,y=1500,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=0)+
-  annotate('text',x=100,y=20,label=paste0("Data: BP World Energy Statistics 2021 (World Bank Population data)"),hjust=0,vjust=0,size=2)+
+  annotate('text',x=1000,y=1500,label=paste0("Current global continuous power ",thisyear,": ",comma(totalgw),"GW"),hjust=0,vjust=0)+
+  annotate('text',x=100,y=20,label=paste0("Data: Energy Institute World Energy Statistics 2023 (World Bank Population data)"),hjust=0,vjust=0,size=2)+
   annotate('text',x=7500,y=700,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
   scale_fill_brewer(breaks=regionList,type="seq",palette="OrRd")+
   labs(y="Watts (continuous power) per person",x="Population",fill="Region",title="Global Electricity Shortfall (cf. Thorcon website)")
 p
-png(paste0("thorcon-pop-energy-new.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
+png(paste0("thorcon-pop-energy-new-",thisyear,".png"),width=1800,height=900,units="px",res=200,type="cairo-png")
 p
 dev.off()
 ```
@@ -318,8 +332,7 @@ fb <- list(size = 13, color = "black")
 fw <- list(size = 18, color = "grey")
 fbig <- list(size = 18)
 etarget=1200
-popm<-worldPop20/1e6
-pop50<-9600
+popm<-worldPop23/1e6
 fig<-layout(fig,title="TITLE",showlegend=FALSE,
             shapes=list(x0=0,y0=0,x1=popm,y1=etarget,layer="below",
                         fillcolor="Khaki",type="rect",line=list(width=0)),
@@ -336,7 +349,7 @@ fig<-fig %>% add_trace(data=pdf,type="bar",x=~x,y=~y,width=~width,text=~Region,h
                        hovertemplate="W/Cap: %{y}\n%{hovertext}<extra></extra>",
                        marker=list(color=~colr))
 fig
-htmlwidgets::saveWidget(as_widget(fig), "thorconplot.html")
+htmlwidgets::saveWidget(as_widget(fig), paste0("thorconplot",thisyear,".html"))
 
 ```
 ## Plot by energy ranked groups
@@ -372,17 +385,18 @@ qList<-append(qList,"RestOfWorld")
 
 dfbig <- dfgroups %>% filter(Region %in% c("G1","G2","G3"))
  
-etarget<-dfgroups$PerCapPower[1]/2
+etarget<-(2/3)*(dfgroups$PerCapPower[1])
+etarget<-892 # IEA
 dfr<-tribble(
   ~xmin,~xmax,~ymin,~ymax,
-   0,    worldPop20/1e6,0,etarget
+   0,    worldPop23/1e6,0,etarget
 )
 top15<-top15 %>% mutate(y=1550-seq(1:15)*50)
 dfepoor <- dfgroups %>% filter(!Region %in% c("G1","G2"))
 shortfall<-dfepoor %>% summarise(sum((etarget-PerCapPower)*Population/1000))
 p<-dfgroups %>% ggplot()+
   geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),fill="grey85",data=dfr) +
-  annotate('text',x=1000,y=1400,label=paste0("Current Global Power: ",comma(totalgw),"GW"),hjust=0,vjust=1)+
+  annotate('text',x=1000,y=1400,label=paste0("Current global continuous\npower ",thisyear,": ",comma(totalgw),"GW"),hjust=0,vjust=1)+
   geom_rect(aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=fct_reorder(Region,PerCapPower))) +
   annotate('text',x=7500,y=1600,label=paste0("Top 15"),hjust=1)+
   geom_text(aes(x=7500,y=y,
@@ -392,16 +406,16 @@ p<-dfgroups %>% ggplot()+
                 label=paste0(comma(floor(PerCapPower*Population/1000)),
                              "GW (",comma(ceiling(100*Population/as.numeric(totalpop))),"%Pop)")),
             data=dfbig,angle=90,size=3,color="white") +
-  annotate('text',x=7500,y=700,label=paste0("Developing Country Shortfall: ",comma(shortfall),"GW"),hjust=1)+
+  annotate('text',x=6000,y=700,label=paste0("Current shortfall: ",comma(shortfall),"GW"),hjust=1)+
   geom_text(aes(x=xmin+60,y=ymax+30,label=paste0(comma(Population),"m"),hjust=0),size=2)+
   geom_text(aes(x=xmin+60,y=ymax+70,label=paste0(comma(PerCapPower),"w"),hjust=0),size=2)+
   scale_fill_manual(breaks=qList,values=rev(getPalette(ndiv+1)))+
   labs(y="Watts (continuous power) per person",
        x=paste0("Population (",comma(as.numeric(totalpop)),"m)"),
-       fill="Region",title="Global Electricity Shortfall (cf. Thorcon website)")
+       fill="Region",title="Global current electricity shortfall\ngiven IEA NetZero 2050 target\nof 820 watts per person")
   
 p
-png(paste0("thorcon-pop-energy-new-octile.png"),width=1800,height=900,units="px",res=200,type="cairo-png")
+png(paste0("thorcon-pop-energy-new-octile-",thisyear,".png"),width=1800,height=900,units="px",res=200,type="cairo-png")
 p
 dev.off()
 ```
@@ -411,15 +425,23 @@ most clearly.
 
 Now let's try that in plotly.
 
+We massage the basic data into various data frames
+
+1. groups ... the list of countries, power per person and group assignment
+2. pdfgroups ... the basic data used for the bars, the popups and the labels 
+
+
 ```{r}
 groupCountries<-groups %>% group_by(Quantile) %>% 
   mutate(str=splitter(paste(paste0(Country," ",comma(PerCapPower),"w"),sep=", ",collapse=", "))) %>% 
   ungroup() %>% select(Quantile,str) %>% rename(Region=Quantile) %>% unique() 
 pdfgroups<-dfgroups %>% left_join(groupCountries) %>% mutate(colr=rev(getPalette(nrow(df)))) %>% 
   mutate(x=xmin+(xmax-xmin)/2,y=ymax,width=xmax-xmin,ymid=y/2)
-pdfgroups$str<-ifelse(is.na(pdfgroups$str),"Many poor countries have no\nindividual data in\nthe BP World Energy Statistics\nE.g. Nigeria with over 200 million people",pdfgroups$str)
+pdfgroups$str<-ifelse(is.na(pdfgroups$str),"Many poor countries have no\nindividual data in\nthe Energy Institute World Energy Statistics\nE.g. Nigeria with over 200 million people",pdfgroups$str)
 pdfgroups<-pdfgroups %>% 
   mutate(str=paste0("Popn: ",comma(Population),"m\n",str),GW=comma(Population*PerCapPower/1000))
+write_csv(pdfgroups,paste0("groupData-",thisyear,".csv"))
+write_csv(groupCountries,paste0("groupCountries-",thisyear,".csv"))
 gfig<-plot_ly()
 fb <- list(size = 13, color = "black")
 fw <- list(size = 18, color = "grey")
@@ -427,10 +449,9 @@ fwhite <- list(color = "white")
 fsmall <- list(color = "black",size=10)
 fbig <- list(size = 18)
 etarget=1200
-popm<-worldPop20/1e6
-pop50<-9600
+popm<-worldPop23/1e6
 gfig<-layout(gfig,title=list(
-          text="<b>Global per person distribution of electricity 2020</b>",
+          text=paste0("<b>Global per person 24x7 supply of electricity ",thisyear,"</b>"),
           y=0.90,x=0.2, xanchor='left',yanchor='top',font=list(size=20)
           ),showlegend=FALSE,
             shapes=list(x0=0,y0=0,x1=pop50,y1=etarget,layer="below",
@@ -447,15 +468,15 @@ gfig<-layout(gfig,title=list(
               comma(etarget*pop50/1000)," GW"
                                 ),align='left',showarrow=TRUE,x=2800,y=etarget,font=fb)) %>%
             layout(annotations=list(
-              text=paste0("Data: BP World Energy Stats (Population data from World Bank)"),xanchor='left',x=100,y=60,font=list(color='white'),showarrow=FALSE)) %>%
+              text=paste0("Data: Energy Institute World Energy Stats\n(Population data from World Bank)"),xanchor='left',x=100,y=80,font=list(color='white'),showarrow=FALSE)) %>%
             layout(annotations=list(
               hovertext=paste("IEA 2050 target is 2.6 times\nthis present electricity output\n",
                               "(",comma(2.6*totalgw)," GW) ",
                               "implying \n",comma(2.6*totalgw/(pop50/1000))," watts/person "
               ),
               text=paste0("Current global power with\n",
-              comma(popm/1000)," billion people: ",comma(totalgw)," GW"),font=list(size="12"),
-              x=5500,y=300,xanchor='left',showarrow=FALSE))
+              comma(popm/1000)," billion people: ",comma(totalgw)," GW"),font=list(size="22"),
+              x=4500,y=800,xanchor='left',showarrow=FALSE))
             
 gfig<-gfig %>% add_trace(data=pdfgroups,type="bar",x=~x,y=~y,width=~width,text=~Region,hovertext=~str,
                        textfont=fbig,
@@ -473,6 +494,6 @@ for(i in 1:nrow(pdfgroups)) {
 }
   
 gfig 
-htmlwidgets::saveWidget(as_widget(gfig), "thorconplot-bygroup.html")
+htmlwidgets::saveWidget(as_widget(gfig), paste0("thorconplot-bygroup",thisyear,".html"))
 
 ```

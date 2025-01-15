@@ -1,0 +1,100 @@
+---
+title: "transmission-v-batteries"
+author: "GeoffRussell"
+date: "2024-10-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+options(scipen=100000)
+SAcust<-919000
+```
+
+## Introduction
+
+If you have a city needing power and a coal mine 200kms away, it has long been true that building the power plant at the mine and transmitting
+the electricity by cable to the city is cheaper than building the generator at the city and shipping the coal. 
+
+But what about the choice between transmission and batteries? Assuming you have excess generation in two locations, but at different times, then what's
+the optimal way of avoiding curtailment of the power? Should you build an interconnector or install batteries in both locations?
+
+## Transmission or batteries 
+
+Let's start with a simple model.
+
+We have locations $A$ and $B$ with local generators. $A$ and $B$ are separated by $k$ kilometers and we want to know whether it's best (cheapest) to
+connect $A$ and $B$ with transmission $T$ or build batteries. 
+
+We'll use South Australia and NSW as a concrete case study. Project *EnergyConnect* is currently under construction. 
+It's about 900kms long and will cost some \$2.28 billion with a construction time
+of [about 5 years](https://www.projectenergyconnect.com.au/); starting from the EIS approval in January 2022.
+
+Initially, PEC was proposed *before* the 2016 Statewide blackout in SA in 2016. The cost range was originally estimated as between \$300m and \$700m. See [here](https://wattclarity.com.au/articles/2024/07/a-tale-of-two-mega-projects-project-energy-connect-and-snowy-2-0-timelines-part-1) for a chronology of the project and its costs.
+
+```{r}
+PECcap<-800e6
+PECcost<-2.28e9
+dperkm<-1.93e6
+km<-900
+cNZAPEC<-dperkm*km
+diff<-comma((PECcost-cNZAPEC)/1e6)
+```
+The power capacity of PEC is `r comma(PECcap/1e6)` MW.
+
+The Net Zero Australia [methods report](https://www.netzeroaustralia.net.au/wp-content/uploads/2023/04/Net-Zero-Australia-Methods-Assumptions-Scenarios-Sensitivities.pdf) assumes a cost of $1.93m/km for a twin 500V HVAC connector with a `r comma(PECcap/1e6)`MW capacity. PEC, at \$2.28b is considerably more expensive by some \$`r diff` million; which mades the NZA assumptions questionable. 
+
+## The symmetry of PEC 
+
+SA has `r comma(SAcust)` customers, far fewer than NSW. The relationship between the two sides of PEC isn't clear (to me).  SA has a considerable number of wind farms which
+may wish to export electricity elsewhere. So as coal plants close in NSW, export flows from SA to NSW may rise. At present, however the flows on existing
+interconnecters are are predominantly into SA.
+
+## Simple battery replacement
+
+Assuming we wanted to replace PEC with batteries, how many could we buy at both ends? Gencost 2024, Table B.6 puts the 12 hour battery cost in 2025 of \$381/kWh. 
+This is roughly half the current retail cost per kWh of a household Tesla Powerwall 2. These hold 13.5 kWh and cost anywhere from \$10k to \$13k.
+
+```{r}
+bcost12<-381
+kwhEnd<-PECcost/bcost12/2  # kWh
+kwhEnd
+```
+
+We could put `r comma(kwhEnd/1e6)` GWh of batteries at each end. Given that PEC is a `r comma(PECcap/1e6)`MW connection. It will 
+deliver `r comma(PECcap/1e6)`MWh of energy per hour.  How
+does this compare with our batteries? If we were running them at full power `r comma(PECcap/1e6)`MW, how long would they last if full?
+
+```{r}
+bTime<-kwhEnd*1e3/PECcap
+bTime
+```
+The batteries would supply some `r comma(bTime)` hours at full power: `r comma(PECcap/1e6)` MW.
+
+## Replacement with home batteries
+
+We could alternatively assume that people would buy home batteries as a substitute for PEC. How many batteries could you get for the cost of PEC? And
+how long would they last? We assume, optimistically, they are being managed by the grid 
+so that they can effectively supply a similar power to PEC for some given time. We could choose to put the batteries evenly in both states, but for now
+we'll put them all in SA.
+
+
+
+```{r}
+SAfraction<-1
+pwallCost<-c(10000,13000)
+pwallE<-13.5e3
+nPwall<-PECcost/pwallCost
+timePwall<-nPwall*pwallE/PECcap
+frPwall<-nPwall/(SAcust*SAfraction)
+nPwall
+timePwall
+```
+
+In this scenario we'll have between 
+`r comma(nPwall[2])` and
+`r comma(nPwall[1])` batteries (`r comma(frPwall[2]*100)`% to `r comma(frPwall[1]*100)`%) of SA customers.
+
+The lifespan of PEC will be measured in decades. In contrast the batteries and associated electronics will need replacing periodically.

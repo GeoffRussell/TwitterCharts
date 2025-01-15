@@ -1,0 +1,55 @@
+---
+title: "ReactivePower"
+author: "GeoffRussell"
+date: "2024-08-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Definitions 
+
+1. True Power (kW)
+2. Apparent Power (kVA)
+3. Reactive Power (kVAr)
+4. Power factor = kW/kVA
+
+
+$$
+\text{Apparent Power (kVA)} = \sqrt{\text{kW}^2 + \text{kVAr}^2} \\
+\text{Reactive Power (kVAr)} = \text{kVA} \times \sin \theta \\
+\text{Power factor (kVAr)} = \cos\theta = \frac{\text{True Power (kW)}}{\text{Apparent Power (kVA)} }
+$$
+
+## Power factors 
+
+1. Good PF: 0.95-1
+3. Bad PF: <0.85 
+
+## Example
+
+Consider 2 x 10 kW motor with 0.87 PF and 0.92 PF.
+
+```{r}
+kw=10
+kva=kw/0.87
+theta=acos(0.87)
+kvar=kva*sin(theta)
+kvar
+# alternatively
+kvar=sqrt(kva^2-kw^2)
+kvar
+
+
+kva=kw/0.92
+theta=acos(0.92)
+kvar=kva*sin(theta)
+kvar
+```
+
+
+
+

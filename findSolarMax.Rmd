@@ -1,0 +1,26 @@
+---
+title: "findSolarMax"
+author: "GeoffRussell"
+date: "2023-12-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+d<-"/home/geoff/ARTICLES/STATS/RBatteries/"
+```
+
+```{r}
+fnames<-Sys.glob(paste0(d,"openNem*SA*23-7D.csv"))
+getMaxRooftop<-function(f) {
+  fname<-paste0(d,f)
+  dfrows<-read_csv(f) %>% rename_with(~sub('date','Time',.x)) %>%  rename_with(~sub('  ',' ',.x)) 
+  df <- dfrows %>% select(Time,`Solar (Utility) - MW`) %>% summarise(mx=max(`Solar (Utility) - MW`),row=which.max(`Solar (Utility) - MW`),time=dfrows$Time[row])
+  df
+}
+df<-data.frame()
+df<-bind_rows(df,map(fnames,getMaxRooftop)) %>% arrange(desc(mx))
+
+```
+

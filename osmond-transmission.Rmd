@@ -1,0 +1,189 @@
+---
+title: "osmond-transmission"
+author: "GeoffRussell"
+date: "2024-10-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse )
+comma2<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+comma<-function(x) prettyNum(signif(x,digits=4),big.mark=",")
+```
+
+## Introduction 
+
+David Osmond's has been trying to persuade people that just 5 hours of storage (120 GWh) is all that would be required in a 100% wind, solar and storage
+electricity system in Australia. Strictly speaking he's talking about just the NEM. I'll first arbitarily change is storage to 160 GWh and consider the whole
+of the Australia. Later I'll consider just the NEM.
+
+He assumes energy flows into this storage instantaneously from anywhere in the country where it happens to be
+generated. He also assumes it can flow out of this storage to anywhere in the country it is required. His goal is to demonstrate 
+how easy and cheap it will be to go 100% wind+solar+storage. Engineers call such a model a "copper plate model", because it is rather like
+assuming all your generators are connected to a vast copper plate where it can flow to whereever it is required (almost) instantaneously. 
+
+To a non-engineer, the Marvel comic book bizarreness of Osmond's assumption isn't obvious.  I aim to rectify that.
+
+Such assumptions are useful sometimes in engineering. Osmond's work demonstrates that nobody could build a real system with less than 120 GWh to service
+our grid. But it tells you nothing at all about how much you actually need. A reasonable next step to do that would be to assume some simple but buildable
+transmission structure and let your model work out how much storage would be required given that structure. 
+
+I won't do that. I will, instead, try to identify what a transmission system would look like that could simulate a copper plate. Then I'll work
+out the cost of such a system. This should give non-engineers some feel for how comic book like Osmond's assumption is. 
+
+## Allocating storage and generation
+
+We first need to make some assumption about where the storage is and how it is connected. The goal here is to build a model as close to unlimited
+as possible, but something that would actually be buildable; meaning it is just a finite number of transmission lines of given capacity and length.
+We assume all storage is located in capital cities of each state and territory. These are the "storage nodes" of our model. That's a reasonable
+assumption because that's where most of the electricity demand is.
+
+We ignore the smaller cities of Hobart, Darwin, and Canberra and just
+connect up the 5 bigger cities. This is a big change to Osmond's model, but let's face it, nobody is going to build a massive
+transmission infrastructure to instantly charge a big battery in Darwin as Osmond's copper plate assumes.
+
+We will just assume Osmond's magical distribution of electricity to the storage nodes in the smaller capitals. 
+
+An alternative would be to place the entire 120 GWh of storage at somewhere as close to equidistant to the major electricity demand centres, Brisbane, Sydney and Melbourne. Maybe I'll flesh that out some other time. 
+
+Let's also assume that generation is built in each state in proportion to the population of the state. That's not entirely realistic, but simplifies the model.
+
+## Interconnectors
+
+We assume each storage node is connected to the other 4 by an interconnector of the size that can carry the maximum capacity of
+the minimum sized storage node it is connected to. For example, if there is 8 GWh of storage in Adelaide, there will be an 8 GW interconnector between Adelaide and
+Sydney.  That ensures no limitations in moving excess energy in Sydney to Adelaide.  It also ensures that we can charge the entire Adelaide storage node
+in an hour. This is much slower than the instantaneous flow assumed by Osmond.
+
+Thus far we have assumed interconnectors capable of moving an overflow of energy from large to small storage nodes. We'll assume they are bidirectional.  This
+means that the 8 GW pipe between Sydney and Adelaide can deliver an 8 GW energy flow to Sydney also. Sydney will have 34 GWh of storage, but Adelaide will
+never have that kind of energy available. 
+
+How much does an interconnector costs? We use Project Energy Connect (PEC) as a model. It's an 800 MW capacity transmission line being built between SA and NSW. The
+total length is about 900 kms. 
+
+```{r}
+PECcost<-2.3e9
+PECGWkm<-900*0.8
+costPerGWkm<-PECcost/PECGWkm
+```
+
+So the cost per GWkm of PEC is \$`r comma2(costPerGWkm/1e6)` million. 
+
+We can calculate the sum of the costs of the interconnectors so far.
+
+```{r}
+storage<-160    # GWh
+tpop=27122e3
+statepops<-tribble(
+  ~"State",~"Popk",
+  "NSW",8469.6,
+  "Victoria",6959.2,
+  "Queensland",5560.5,
+  "South Australia",1873.8,
+  "Western Australia",2951.6,
+  "Tasmania",575.7,
+  "Northern Territory",254.3,
+  "Australian Capital Territory",472.8) |> mutate(Popn=Popk*1000,frac=Popn/tpop,gwh=frac*storage)
+
+network<-tribble(
+  ~source,~dest,~kms,~cap,
+  "Sydney","Brisbane", 729, 24,
+  "Sydney","Melbourne", 715, 30,
+  "Brisbane","Melbourne", 1392, 30,
+  "Sydney","Adelaide", 1159, 8,
+  "Brisbane","Adelaide", 1605, 8,
+  "Melbourne","Adelaide", 636, 8,
+  "Sydney","Perth", 3269, 13,
+  "Brisbane","Perth", 3621, 13,
+  "Melbourne","Perth", 2699, 13,
+  "Adelaide","Perth", 2161, 13
+) 
+trans<-network |> summarise(GWkm=sum(kms*cap))
+tcost<-trans$GWkm*costPerGWkm
+```
+
+## For interconnections, but without feeders. 
+
+The total cost, so far, to connect up the batteries but not actually charge them from generators, 
+is \$`r comma2(tcost/1e9)` billion and involves building `r comma(trans$GWkm)` GWkm of transmission.
+
+## Comparison with the Net Zero Australia plan
+
+The [Net Zero Australia plan](https://www.netzeroaustralia.net.au/wp-content/uploads/2023/04/Net-Zero-Australia-final-results-full-results-pack-19-April-23.pdf) (NZA) emanates from Melbourne University and is a quasi-complete decarbonisation plan for Australia. I call it "quasi-complete" because it
+only pretends to deal with Australia's largest single warming factor; our sheep and cattle. Thinking that 2 million tonnes of methane can be fixed with
+feed additives shows a remarkable naivety. Considering that a string of promising feed additives 
+have failed for about half a century to make any difference at all, despite claims every few year that
+a breakthrough is imminent. 
+
+The total cost of NZA comes to \$7-\$9 trillion. 
+
+But NZA is far more complete than the tightly focused AEMO Integrated System Plan. On page 105 of the NZA, there is a transmission plan for
+it's E+ (Rapid Electrification) scenario. You will see about 276,000 GWkms of additional transmission. The NZA transmission plan was carefully planned in 
+a project taking dozens of people. Mine was conceived in a few minutes as a simple attempt to densely connect some storage nodes. Nevertheless, the amount
+of transmission is remarkably similar. 
+
+## Feeders 
+
+The interconnectors move energy between storage nodes. We also need transmisson to actually use the batteries; to charge and discharge them.
+
+Consider NSW, it has 34 GWh of batteries. If you want to charge them in an hour, you need 34 GW of capacity into the batteries. How should we model this? Keep
+in mind of course that Osmond charges all his batteries instantly from any excess energy anywhere in the country.
+
+Let's assume we have all our generators along a 200 km transmission line in each state. So for NSW we will need $200 x 34$ GWkm of this feeder transmission. 
+
+```{r}
+feederGWkm<-200 * (34+20+13+30+8)
+feederCost<-feederGWkm*costPerGWkm
+```
+
+So the total feeder cost is \$`r comma(feederCost/1e9)` billion.
+
+This brings out total cost to \$`r comma((feederCost+tcost)/1e9)` billion.
+
+## The NEM as a special case
+
+
+```{r}
+storage<-120    # GWh
+tpop=27122e3-2951.6e3-254.3e3
+statepopsNEM<-tribble(
+  ~"State",~"Popk",
+  "NSW",8469.6,
+  "Victoria",6959.2,
+  "Queensland",5560.5,
+  "South Australia",1873.8,
+#  "Western Australia",2951.6,
+  "Tasmania",575.7,
+# "Northern Territory",254.3,
+  "Australian Capital Territory",472.8) |> mutate(Popn=Popk*1000,frac=Popn/tpop,gwh=frac*storage)
+
+networkNEM<-tribble(
+  ~source,~dest,~kms,~cap,
+  "Sydney","Brisbane", 729, 24,
+  "Sydney","Melbourne", 715, 30,
+  "Brisbane","Melbourne", 1392, 30,
+  "Sydney","Adelaide", 1159, 8,
+  "Brisbane","Adelaide", 1605, 8,
+  "Melbourne","Adelaide", 636, 8,
+#  "Sydney","Perth", 3269, 13,
+#  "Brisbane","Perth", 3621, 13,
+#  "Melbourne","Perth", 2699, 13,
+#  "Adelaide","Perth", 2161, 13
+) 
+transNEM<-networkNEM |> summarise(GWkm=sum(kms*cap))
+tcostNEM<-transNEM$GWkm*costPerGWkm
+
+feederNEMGWkm<-200 * (34+20+30+8)
+feederNEMCost<-feederGWkm*costPerGWkm
+```
+
+The total cost for the NEM only system, to connect up the batteries but not actually charge them from generators, 
+is \$`r comma2(tcostNEM/1e9)` billion and involves building `r comma(transNEM$GWkm)` GWkm of transmission.
+
+And the total feeder cost is \$`r comma(feederNEMCost/1e9)` billion.
+
+This brings out total cost to \$`r comma((feederNEMCost+tcostNEM)/1e9)` billion.
+
+

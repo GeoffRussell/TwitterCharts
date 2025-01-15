@@ -1,0 +1,23 @@
+---
+title: "bowel-cancer-in-japan"
+author: "GeoffRussell"
+date: "2024-03-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+bc1990<-20000
+bc2020<-148000
+y<-2020-1990+1
+casesperyear<-(bc2020-bc1990)/y
+years<-seq(1990,2020)
+cases<-bc1990+seq(0,y)*casesperyear
+cases
+extracases<-sum(cases)-y*20000
+extracases
+```
+
