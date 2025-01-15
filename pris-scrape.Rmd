@@ -123,7 +123,7 @@ getReactorDetails<-function(name) {
       tibble()
     }
 }
-getMoreReactorDetails<-function(name) {
+getFullReactorDetails<-function(name) {
     thename=name
     name<-str_replace_all(name," ","%20")
     url<-"https://world-nuclear.org/nuclear-reactor-database/details/"
@@ -157,10 +157,10 @@ getMoreReactorDetails<-function(name) {
 # Test the function
 testd1<-tibble()
 testd2<-tibble()
-x<-getMoreReactorDetails("BARAKAH-1")
+x<-getFullReactorDetails("BARAKAH-1")
 testd1<-bind_rows(testd1,x[[1]])
 testd2<-bind_rows(testd2,x[[2]])
-x<-getMoreReactorDetails("BRUCE-1")
+x<-getFullReactorDetails("BRUCE-1")
 testd1<-bind_rows(testd1,x[[1]])
 testd2<-bind_rows(testd2,x[[2]])
 ```
@@ -199,6 +199,12 @@ subperkwh
 
 ## Build the reactor tables
 
+We build two tables, the first `globaldf` has data relating to each reactor as a whole. When it entered the grid, or was shutdown, etc. The
+second `yearlydf` contains data about the energy generation in each year of operation.
+
+There are some NAs in this data, e.g., for ARMENIA-1 there is only data for a few years of operation. So NA is not an
+indication of the reactor being offline. Some reactors have been shut down and then reopened. Such things complicate the processing
+
 ```{r}
 yearlydf<-tibble()
 globaldf<-tibble()
@@ -210,7 +216,7 @@ nn<-0
 for(n in reactors$Name) {
   if (!has.key(n,dthash)) {
     # dthash[n]=getReactorDetails(n)
-    l<-getMoreReactorDetails(n)
+    l<-getFullReactorDetails(n)
     globaldf<-bind_rows(globaldf,l[[1]])
     yearlydf<-bind_rows(yearlydf,l[[2]])
     dthash[n]=n
@@ -221,22 +227,10 @@ for(n in reactors$Name) {
 write_csv(globaldf,detailsfilename)
 write_csv(yearlydf,outputdetailsfilename)
 ```
-```{r}
-write_csv(globaldf,detailsfilename)
-write_csv(yearlydf,outputdetailsfilename)
-```
-
-```{r}
-saveRDS(dthash,"reactordatahash.RData")
-```
-
-```{r}
-dthash[["BARAKAH-1"]]$attribute
-```
 
 Now we can collect up all the records from the hash and write to a file for future use
 
-```{r}
+```{robsolete}
 keys(dthash)
 rdt<-tibble()
 for (n in keys(dthash)) {
@@ -248,7 +242,8 @@ for (n in keys(dthash)) {
 rdt |> select(reactorName) |> unique()
 write_csv(rdt,detailsfilename)
 ```
-## Processing the data
+
+## Processing the per-reactor details
 
 We need to parse the dates and convert to a date format to allow the calculation of timespans.
 
