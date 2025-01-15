@@ -90,8 +90,6 @@ for (c in country_codes$codes) {
 write_csv(reactors,reactorfilename)
 ```
 
-
-
 Now for the function to get the details for each reactor we aren't (yet) interested in the operational record, just construction information.
 
 ```{r}
