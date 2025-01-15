@@ -1,0 +1,58 @@
+---
+title: "nemlog-analyse-wind"
+author: "GeoffRussell"
+date: "2025-01-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(RcppRoll)
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+comma<-function(x) prettyNum(signif(x,digits=5),big.mark=",")
+options(scipen=99999)
+```
+
+
+```{r}
+df<-read_csv("NEM WIND from NEM_WIND (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 08_54_17.csv") |> rename(wind=`WIND NEM`)
+```
+
+```{r}
+ndays=7
+meanwind<-mean(df$wind)
+meanwind
+
+dostats<-function(df,tag,doplot=F) {
+  rollsum<-roll_sum(df$wind/12,n=12*ndays*24)
+  minrollsum<-min(rollsum[rollsum>0])
+  ixmin<-which.min(rollsum[rollsum>0])
+  print(paste0("Start of MinWeek: ",df$Time[ixmin]))
+  maxrollsum<-max(rollsum[rollsum>0])
+  meanrollsum<-mean(rollsum[rollsum>0])
+  print(paste0("Weekly min ",tag,": ",comma(minrollsum)," MWh"))
+  print(paste0("Weekly max ",tag,": ",comma(maxrollsum)," MWh"))
+  print(paste0("Weekly mean ",tag,": ",comma(meanrollsum)," MWh"))
+  print(paste0("Weekly theoretical mean : ",comma(meanwind*24*ndays)," MWh"))
+  if (doplot) {
+    df |> ggplot() + geom_line(aes(x=Time,y=wind)) + geom_vline(aes(xintercept=df$Time[ixmin]))
+    
+  }
+}
+dostats(df,"(Annual)")
+dfmay<-df |> filter(Time>=ymd("2024-05-01") & Time<ymd("2024-06-01"))
+dfjune<-df |> filter(Time>=ymd("2024-06-01") & Time<ymd("2024-07-01"))
+dfjuly<-df |> filter(Time>=ymd("2024-07-01") & Time<ymd("2024-08-01"))
+dostats(dfjune,"(June)",T)
+dostats(dfjuly,"(July)",T)
+dostats(dfmay,"(May)",T)
+```
+
+```
+df |> ggplot() + geom_smooth(aes(x=Time,y=`WIND NEM`))
+```
