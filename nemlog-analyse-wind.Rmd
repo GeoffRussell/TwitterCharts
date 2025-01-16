@@ -29,28 +29,42 @@ meanwind<-mean(df$wind)
 meanwind
 
 dostats<-function(df,tag,doplot=F) {
+  pdays=nrow(df)/(12*24)
   rollsum<-roll_sum(df$wind/12,n=12*ndays*24)
   minrollsum<-min(rollsum[rollsum>0])
   ixmin<-which.min(rollsum[rollsum>0])
   print(paste0("Start of MinWeek: ",df$Time[ixmin]))
   maxrollsum<-max(rollsum[rollsum>0])
   meanrollsum<-mean(rollsum[rollsum>0])
+  periodoutput<-sum(df$wind/12)
+  print(paste0("Period days : ",pdays," days"))
+  print(paste0("Period output : ",comma(periodoutput)," MWh"))
+  print(paste0("Theoretical period output: ",comma(meanwind*24*pdays)," MWh"))
   print(paste0("Weekly min ",tag,": ",comma(minrollsum)," MWh"))
   print(paste0("Weekly max ",tag,": ",comma(maxrollsum)," MWh"))
   print(paste0("Weekly mean ",tag,": ",comma(meanrollsum)," MWh"))
   print(paste0("Weekly theoretical mean : ",comma(meanwind*24*ndays)," MWh"))
   if (doplot) {
-    df |> ggplot() + geom_line(aes(x=Time,y=wind)) + geom_vline(aes(xintercept=df$Time[ixmin]))
-    
+    p<-df |> ggplot() + 
+      geom_rect(aes(xmin=df$Time[ixmin],xmax=df$Time[ixmin+12*24*7],ymin=0,ymax=Inf),fill="grey80",alpha=0.1) +
+      geom_line(aes(x=Time,y=wind),color="blue") + labs(title=paste0("NEM Wind Output ",tag,"\nMinimum week shaded")) +
+      annotate('text',x=df$Time[1500],y=7000,label=paste0("Minimum wind week output\n",comma(100*minrollsum/(meanwind*24*ndays)),"% of annual weekly mean"))
+    return (p)
   }
 }
 dostats(df,"(Annual)")
 dfmay<-df |> filter(Time>=ymd("2024-05-01") & Time<ymd("2024-06-01"))
 dfjune<-df |> filter(Time>=ymd("2024-06-01") & Time<ymd("2024-07-01"))
 dfjuly<-df |> filter(Time>=ymd("2024-07-01") & Time<ymd("2024-08-01"))
-dostats(dfjune,"(June)",T)
-dostats(dfjuly,"(July)",T)
-dostats(dfmay,"(May)",T)
+pjune<-dostats(dfjune,"(June)",T)
+pmay<-dostats(dfmay,"(May)",T)
+pjuly<-dostats(dfjuly,"(July)",T)
+dopng("NEMWind-May2024.png",pmay)
+dopng("NEMWind-June2024.png",pjune)
+dopng("NEMWind-July2024.png",pjuly)
+pmay
+pjune
+pjuly
 ```
 
 ```
