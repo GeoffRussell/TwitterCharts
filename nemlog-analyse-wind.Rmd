@@ -20,53 +20,73 @@ options(scipen=99999)
 
 
 ```{r}
-df<-read_csv("NEM WIND from NEM_WIND (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 08_54_17.csv") |> rename(wind=`WIND NEM`)
+dfw<-read_csv("NEM WIND from NEM_WIND (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 08_54_17.csv") |> 
+  rename(time=Time,wind=`WIND NEM`) |> mutate(pow=wind)
+dfs<-read_csv("NEM SOLAR from NEM_SOLAR (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 13_57_16.csv") |> 
+  rename(time=Time,solar=`SOLAR NEM`) |> mutate(pow=solar)
+dfrts<-read_csv("NEM SOLAR_ROOFTOP_PV from NEM_SOLAR_ROOFTOP_PV (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 13_58_26.csv") |>
+  rename(time=Time,rts=`SOLAR_ROOFTOP_PV NEM`)|> mutate(pow=rts)
+
+df<-bind_cols(dfw,dfs,dfrts) |> mutate(time=`time...1`) |> select(time,solar,wind,rts) |> mutate(pow=solar+wind) 
 ```
 
 ```{r}
-ndays=7
-meanwind<-mean(df$wind)
-meanwind
+ndays=3
+meanpow=mean(df$pow)
 
-dostats<-function(df,tag,doplot=F) {
+dostats<-function(df,tag,meanpow,ndays=7,doplot=F) {
   pdays=nrow(df)/(12*24)
-  rollsum<-roll_sum(df$wind/12,n=12*ndays*24)
+  pos=as.integer(0.1*nrow(df))
+  rollsum<-roll_sum(df$pow/12,n=12*ndays*24)
   minrollsum<-min(rollsum[rollsum>0])
   ixmin<-which.min(rollsum[rollsum>0])
-  print(paste0("Start of MinWeek: ",df$Time[ixmin]))
+  print(paste0("Start of MinWeek: ",df$time[ixmin]))
   maxrollsum<-max(rollsum[rollsum>0])
   meanrollsum<-mean(rollsum[rollsum>0])
-  periodoutput<-sum(df$wind/12)
+  periodoutput<-sum(df$pow/12)
   print(paste0("Period days : ",pdays," days"))
+  print(paste0("Window days : ",ndays," days"))
   print(paste0("Period output : ",comma(periodoutput)," MWh"))
-  print(paste0("Theoretical period output: ",comma(meanwind*24*pdays)," MWh"))
+  print(paste0("Theoretical period output: ",comma(meanpow*24*pdays)," MWh"))
   print(paste0("Weekly min ",tag,": ",comma(minrollsum)," MWh"))
   print(paste0("Weekly max ",tag,": ",comma(maxrollsum)," MWh"))
   print(paste0("Weekly mean ",tag,": ",comma(meanrollsum)," MWh"))
-  print(paste0("Weekly theoretical mean : ",comma(meanwind*24*ndays)," MWh"))
+  print(paste0("Weekly theoretical mean : ",comma(meanpow*24*ndays)," MWh"))
   if (doplot) {
     p<-df |> ggplot() + 
-      geom_rect(aes(xmin=df$Time[ixmin],xmax=df$Time[ixmin+12*24*7],ymin=0,ymax=Inf),fill="grey80",alpha=0.1) +
-      geom_line(aes(x=Time,y=wind),color="blue") + labs(title=paste0("NEM Wind Output ",tag,"\nMinimum week shaded")) +
-      annotate('text',x=df$Time[1500],y=7000,label=paste0("Minimum wind week output\n",comma(100*minrollsum/(meanwind*24*ndays)),"% of annual weekly mean"))
+      geom_rect(aes(xmin=df$time[ixmin],xmax=df$time[ixmin+12*24*ndays],ymin=0,ymax=Inf),fill="grey80",alpha=0.1) +
+      geom_line(aes(x=time,y=pow),color="blue") + labs(title=paste0("NEM output ",tag,"\nMinimum window shaded\nWindow length: ",ndays," days")) +
+      annotate('text',x=df$time[pos],y=7000,hjust=0,label=paste0("Minimum window output\n",comma(100*minrollsum/(meanpow*24*ndays)),"% of annual weekly mean"))
     return (p)
   }
 }
-dostats(df,"(Annual)")
-dfmay<-df |> filter(Time>=ymd("2024-05-01") & Time<ymd("2024-06-01"))
-dfjune<-df |> filter(Time>=ymd("2024-06-01") & Time<ymd("2024-07-01"))
-dfjuly<-df |> filter(Time>=ymd("2024-07-01") & Time<ymd("2024-08-01"))
-pjune<-dostats(dfjune,"(June)",T)
-pmay<-dostats(dfmay,"(May)",T)
-pjuly<-dostats(dfjuly,"(July)",T)
-dopng("NEMWind-May2024.png",pmay)
-dopng("NEMWind-June2024.png",pjune)
-dopng("NEMWind-July2024.png",pjuly)
+p<-dostats(dfw,"(2024 - Wind)",mean(dfw$pow),7,T)
+p
+```
+```{r}
+dfwmay<-dfw |> filter(time>=ymd("2024-05-01") & time<ymd("2024-06-01"))
+dfwjune<-dfw |> filter(time>=ymd("2024-06-01") & time<ymd("2024-07-01"))
+dfwjuly<-dfw |> filter(time>=ymd("2024-07-01") & time<ymd("2024-08-01"))
+
+dfmay<-df |> filter(time>=ymd("2024-05-01") & time<ymd("2024-06-01"))
+dfjune<-df |> filter(time>=ymd("2024-06-01") & time<ymd("2024-07-01"))
+dfjuly<-df |> filter(time>=ymd("2024-07-01") & time<ymd("2024-08-01"))
+
+
+pmaywind<-dostats(dfwmay,"(May wind)",mean(dfw$pow),7,T)
+pmaywind
+pjunewind<-dostats(dfwjune,"(June wind)",mean(dfw$pow),7,T)
+pjunewind
+pjulywind<-dostats(dfwjuly,"(July wind)",mean(dfw$pow),7,T)
+pjulywind
+
+#dopng("NEMWind-May2024.png",pmay)
+#dopng("NEMWind-June2024.png",pjune)
+#dopng("NEMWind-July2024.png",pjuly)
+pjune<-dostats(dfjune,"(June wind+solar)",mean(df$pow),2,T)
+pmay<-dostats(dfmay,"(May wind+solar)",mean(df$pow),2,T)
+pjuly<-dostats(dfjuly,"(July wind+solar)",mean(df$pow),2,T)
 pmay
 pjune
 pjuly
-```
-
-```
-df |> ggplot() + geom_smooth(aes(x=Time,y=`WIND NEM`))
 ```
