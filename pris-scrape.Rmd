@@ -243,6 +243,16 @@ rdt |> select(reactorName) |> unique()
 write_csv(rdt,detailsfilename)
 ```
 
+## Processing the reactor output details
+
+```{r}
+dfo<-read_csv(outputdetailsfilename)
+dfg<-read_csv(detailsfilename)
+dfl<-read_csv(reactorfilename)
+r99<-dfo |> filter(name=="Annual Time Online (Hours)" & value>=(0.99*8760)) |> summarise(name=unique(reactor)) |> arrange(name)
+r99
+```
+
 ## Processing the per-reactor details
 
 We need to parse the dates and convert to a date format to allow the calculation of timespans.
