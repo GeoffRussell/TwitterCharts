@@ -246,9 +246,25 @@ write_csv(rdt,detailsfilename)
 ## Processing the reactor output details
 
 ```{r}
+library(tidyverse)
+ccodes<-read_csv("country_codes.csv")
 dfo<-read_csv(outputdetailsfilename)
 dfg<-read_csv(detailsfilename)
-dfl<-read_csv(reactorfilename)
+dfl<-read_csv(reactorfilename) |> rename(code2=Country) |> inner_join(ccodes,by=join_by(code2))
+```
+
+```{r}
+dflo<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  filter(Year>2014) |>
+  group_by(Country,reactor,Year) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760))
+
+nreactorsbycountry<-dflo |> select(Country,reactor) |> distinct() |> group_by(Country) |> summarise(n=n())
+```
+
+```{r}
+cfbycountry<-dflo |> group_by(Country) |>  summarise(avup=mean(uptime,na.rm=T)) |> inner_join(nreactorsbycountry)
 r99<-dfo |> filter(name=="Annual Time Online (Hours)" & value>=(0.99*8760)) |> summarise(name=unique(reactor)) |> arrange(name)
 r99
 ```
