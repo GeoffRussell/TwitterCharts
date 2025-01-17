@@ -27,6 +27,7 @@ dopng<-function(name,p,w=2200,h=1300) {
   dev.off()
 }
 comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 
 ```
 
@@ -254,19 +255,70 @@ dfl<-read_csv(reactorfilename) |> rename(code2=Country) |> inner_join(ccodes,by=
 ```
 
 ```{r}
+cfallyears<-function() {
+  out<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  group_by(Country,Year) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`,na.rm=T)/(n()*8760)) |> ungroup()
+}
+cfall<-cfallyears()
+pav<-cfall |> filter(Year>=1980  & Country %in% c("Hungary","China","France","USA","Sweden","Czechia","Sweden","Japan")) |> ggplot() +
+  geom_line(aes(x=Year,y=100*uptime,color=Country),linewidth=2) + labs(x="",y="Capacity factor",title="Nuclear availability factors for selected countries\nData: IAEA PRIS")
+pav
+dopng("Availability-by-Country.png",pav)
+```
+```{r}
+
+cfyear<-function(y) {
+  out<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  filter(Year==y) |>
+  group_by(Country) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760)) |> ungroup()
+}
+cf23all<-cfyear(2023) 
+```
+
+```{r}
+cf23<-cfyear(2023) |> filter(Country=="France")
+cf22<-cfyear(2022) |> filter(Country=="France")
+cf21<-cfyear(2021) |> filter(Country=="France")
+cf20<-cfyear(2020) |> filter(Country=="France")
+cf19<-cfyear(2019) |> filter(Country=="France")
+
+
 dflo<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
   pivot_wider(names_from=`name`) |> 
   filter(Year>2014) |>
   group_by(Country,reactor,Year) |> 
-  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760))
+  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760)) |> ungroup()
 
-nreactorsbycountry<-dflo |> select(Country,reactor) |> distinct() |> group_by(Country) |> summarise(n=n())
+reactorsPerCountry<-dflo |> select(Country,reactor) |> distinct() |> count(Country) 
+cfbycountry<-dflo |> group_by(Country) |>  summarise(avup=mean(uptime,na.rm=T)) |> inner_join(reactorsPerCountry) |> arrange(desc(avup))
+pcf<-cfbycountry |> ggplot(aes(x=reorder(Country,avup),y=avup*100)) + geom_col(fill="blue") + 
+  geom_text(aes(label=paste0(" ",comma3(avup*100)," (",n,")")),hjust=0) + 
+  coord_flip() + ylim(0,105) + labs(x="",y="Capacity factor percentage",title="Capacity factors by country since 2015\n (n) is the number of reactors\nData: IAEA PRIS")
+pcf
+dopng("Capacity-factor-by-country-2015.png",pcf,h=3500)
 ```
 
 ```{r}
-cfbycountry<-dflo |> group_by(Country) |>  summarise(avup=mean(uptime,na.rm=T)) |> inner_join(nreactorsbycountry)
-r99<-dfo |> filter(name=="Annual Time Online (Hours)" & value>=(0.99*8760)) |> summarise(name=unique(reactor)) |> arrange(name)
-r99
+currentReactor<-dfo |> filter(Year==2023)
+nr<-currentReactor |> distinct(reactor) |> count()
+bw=2
+
+p<-currentReactor |> filter(name=="Annual Time Online (Hours)") |> mutate(cf=100*value/8760) |>
+  ggplot(aes(x=cf)) + geom_histogram(fill="blue",binwidth=bw) + 
+  annotate('text',x=0,y=60,label=paste0("Total number of reactors: ",nr),hjust=0)+
+  annotate('text',x=0,y=55,label=paste0("Binwidth: ",bw),hjust=0)+
+  annotate('text',x=0,y=50,label=paste0("(e.g 57 reactors with a capacity factor between 98 and 100 per cent "),hjust=0)+
+  labs(title="Reactor capacity factors 2023\nData: IAEA PRIS ",x="Capacity factor",y="Number of reactors")+
+  geom_text(
+    stat = "bin", aes(label = after_stat(count)),size=3,vjust = -1,binwidth=bw)+ylim(0,65)
+p
+
+dopng("Capacity-factor-histogram.png",p)
+
 ```
 
 ## Processing the per-reactor details
