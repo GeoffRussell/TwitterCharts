@@ -97,7 +97,11 @@ Now for the function to get the details for each reactor we aren't (yet) interes
 reactors<-read_csv(reactorfilename)
 ```
 
-Having initialised the hash, we can run the next bit over and over again. It takes about an hour for all the reactors in the database.
+## Get Reactor details
+
+There are two functions, `getReactorDetails` is the first version and `getFullReactorDetails` is the one now being used.
+
+It takes about an hour to get details for all the reactors in the database.
 
 ```{r}
 getReactorDetails<-function(name) {
@@ -154,6 +158,48 @@ getFullReactorDetails<-function(name) {
 }
 ```
 
+
+
+## Build the reactor tables
+
+We build two tables, the first `globaldf` has data relating to each reactor as a whole. When it entered the grid, or was shutdown, etc. The
+second `yearlydf` contains data about the energy generation in each year of operation.
+
+There are some NAs in this data, e.g., for ARMENIA-1 there is only data for a few years of operation. So NA is not an
+indication of the reactor being offline. Some reactors have been shut down and then reopened. Such things complicate the processing
+
+```{r}
+yearlydf<-tibble()
+globaldf<-tibble()
+dthash<-hash()     # save the names of reactors we have processed
+```
+
+Once initialised, we can rerun the next chunk over and over again to get the data in chunks, which is
+a polite way to scrape a database; or just once. 
+
+```{r}
+nn<-0
+for(n in reactors$Name) {
+  if (!has.key(n,dthash)) {
+    # dthash[n]=getReactorDetails(n)
+    l<-getFullReactorDetails(n)
+    globaldf<-bind_rows(globaldf,l[[1]])
+    yearlydf<-bind_rows(yearlydf,l[[2]])
+    dthash[n]=n
+    nn<-nn+1
+    # if (nn>100) break
+  }
+}
+write_csv(globaldf,detailsfilename)
+write_csv(yearlydf,outputdetailsfilename)
+```
+
+## Various testing code
+
+```{r}
+stop-here
+```
+
 ```{r test}
 # Test the function
 testd1<-tibble()
@@ -195,38 +241,6 @@ twh<-as.double(testf |> filter(attribute=="Total GWh") |> summarise(twh=sum(as.d
 subsidy<-20e9
 subperkwh=subsidy/(twh*1e12/1e3)
 subperkwh
-```
-
-
-## Build the reactor tables
-
-We build two tables, the first `globaldf` has data relating to each reactor as a whole. When it entered the grid, or was shutdown, etc. The
-second `yearlydf` contains data about the energy generation in each year of operation.
-
-There are some NAs in this data, e.g., for ARMENIA-1 there is only data for a few years of operation. So NA is not an
-indication of the reactor being offline. Some reactors have been shut down and then reopened. Such things complicate the processing
-
-```{r}
-yearlydf<-tibble()
-globaldf<-tibble()
-dthash<-hash()
-```
-
-```{r}
-nn<-0
-for(n in reactors$Name) {
-  if (!has.key(n,dthash)) {
-    # dthash[n]=getReactorDetails(n)
-    l<-getFullReactorDetails(n)
-    globaldf<-bind_rows(globaldf,l[[1]])
-    yearlydf<-bind_rows(yearlydf,l[[2]])
-    dthash[n]=n
-    nn<-nn+1
-    #if (nn>100) break
-  }
-}
-write_csv(globaldf,detailsfilename)
-write_csv(yearlydf,outputdetailsfilename)
 ```
 
 Now we can collect up all the records from the hash and write to a file for future use
