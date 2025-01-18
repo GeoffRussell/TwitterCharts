@@ -262,10 +262,10 @@ cfallyears<-function() {
   summarise(uptime=sum(`Annual Time Online (Hours)`,na.rm=T)/(n()*8760)) |> ungroup()
 }
 cfall<-cfallyears()
-pav<-cfall |> filter(Year>=1980  & Country %in% c("Hungary","China","France","USA","Sweden","Czechia","Sweden","Japan")) |> ggplot() +
+pav<-cfall |> filter(Year>=1980  & Country %in% c("France","USA")) |> ggplot() +
   geom_line(aes(x=Year,y=100*uptime,color=Country),linewidth=2) + labs(x="",y="Capacity factor",title="Nuclear availability factors for selected countries\nData: IAEA PRIS")
 pav
-dopng("Availability-by-Country.png",pav)
+dopng("Availability-by-CountryFrUs.png",pav)
 ```
 ```{r}
 
