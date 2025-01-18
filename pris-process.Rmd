@@ -1,0 +1,207 @@
+---
+title: "pris-process"
+author: "GeoffRussell"
+date: "2024-09-08"
+output: html_document
+---
+
+## The IAEA PRIS database
+
+We have `pris-scrape` script to retrieve all the PRIS data and this script `pris-process` to process it
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(xml2)
+library(hash)
+reactorfilename<-"prisreactorlist-sep-8-2024.csv"
+reactorfilename<-"prisreactorlist-oct-14-2024.csv"
+reactorfilename<-"prisreactorlist-jan-15-2025.csv"
+
+detailsfilename<-"prisreactordetails-sep-8-2024.csv"
+detailsfilename<-"prisreactordetails-oct-14-2024.csv"
+detailsfilename<-"prisreactordetails-jan-15-2025.csv"
+
+outputdetailsfilename<-"prisoutputdetails-jan-15-2025.csv"
+
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
+comma<-function(x) prettyNum(signif(x,digits=2),big.mark=",")
+comma3<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+```
+
+## Processing the reactor output details
+
+```{r}
+ccodes<-read_csv("country_codes.csv")
+dfo<-read_csv(outputdetailsfilename)
+dfg<-read_csv(detailsfilename)
+dfl<-read_csv(reactorfilename) |> rename(code2=Country) |> inner_join(ccodes,by=join_by(code2))
+```
+
+```{r}
+cfallyears<-function() {
+  out<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  group_by(Country,Year) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`,na.rm=T)/(n()*8760)) |> ungroup()
+}
+cfall<-cfallyears()
+pav<-cfall |> filter(Year>=1980  & Country %in% c("France","USA")) |> ggplot() +
+  geom_line(aes(x=Year,y=100*uptime,color=Country),linewidth=2) + labs(x="",y="Capacity factor",title="Nuclear availability factors for selected countries\nData: IAEA PRIS")
+pav
+dopng("Availability-by-CountryFrUs.png",pav)
+```
+
+```{r}
+
+cfyear<-function(y) {
+  out<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  filter(Year==y) |>
+  group_by(Country) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760)) |> ungroup()
+}
+cf23all<-cfyear(2023) 
+```
+
+```{r}
+cf23<-cfyear(2023) |> filter(Country=="France")
+cf22<-cfyear(2022) |> filter(Country=="France")
+cf21<-cfyear(2021) |> filter(Country=="France")
+cf20<-cfyear(2020) |> filter(Country=="France")
+cf19<-cfyear(2019) |> filter(Country=="France")
+
+
+dflo<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
+  pivot_wider(names_from=`name`) |> 
+  filter(Year>2014) |>
+  group_by(Country,reactor,Year) |> 
+  summarise(uptime=sum(`Annual Time Online (Hours)`)/(n()*8760)) |> ungroup()
+
+reactorsPerCountry<-dflo |> select(Country,reactor) |> distinct() |> count(Country) 
+cfbycountry<-dflo |> group_by(Country) |>  summarise(avup=mean(uptime,na.rm=T)) |> inner_join(reactorsPerCountry) |> arrange(desc(avup))
+pcf<-cfbycountry |> ggplot(aes(x=reorder(Country,avup),y=avup*100)) + geom_col(fill="blue") + 
+  geom_text(aes(label=paste0(" ",comma3(avup*100)," (",n,")")),hjust=0) + 
+  coord_flip() + ylim(0,105) + labs(x="",y="Capacity factor percentage",title="Capacity factors by country since 2015\n (n) is the number of reactors\nData: IAEA PRIS")
+pcf
+dopng("Capacity-factor-by-country-2015.png",pcf,h=3500)
+```
+
+```{r}
+currentReactor<-dfo |> filter(Year==2023)
+nr<-currentReactor |> distinct(reactor) |> count()
+bw=2
+
+p<-currentReactor |> filter(name=="Annual Time Online (Hours)") |> mutate(cf=100*value/8760) |>
+  ggplot(aes(x=cf)) + geom_histogram(fill="blue",binwidth=bw) + 
+  annotate('text',x=0,y=60,label=paste0("Total number of reactors: ",nr),hjust=0)+
+  annotate('text',x=0,y=55,label=paste0("Binwidth: ",bw),hjust=0)+
+  annotate('text',x=0,y=50,label=paste0("(e.g 57 reactors with a capacity factor between 98 and 100 per cent "),hjust=0)+
+  labs(title="Reactor capacity factors 2023\nData: IAEA PRIS ",x="Capacity factor",y="Number of reactors")+
+  geom_text(
+    stat = "bin", aes(label = after_stat(count)),size=3,vjust = -1,binwidth=bw)+ylim(0,65)
+p
+
+dopng("Capacity-factor-histogram.png",p)
+
+```
+
+## Processing the per-reactor details
+
+We need to parse the dates and convert to a date format to allow the calculation of timespans.
+
+```{r}
+rdt<-read_csv(detailsfilename)
+rlist<-read_csv(reactorfilename)
+rdt$reactorName=gsub("%20"," ",rdt$reactorName)
+
+rdtw<-rdt |> pivot_wider(names_from=attribute,values_from=value) |> mutate(
+  startBuild=parse_date(`Construction Start`,format="%*%d %B %Y"),
+  firstCritical=parse_date(`First Criticality`,format="%*%d %B %Y"),
+  connectToGrid=parse_date(`First Grid Connection`,format="%*%d %B %Y"),
+  commercialOn=parse_date(`Commercial Operation`,format="%*%d %B %Y"),
+  shutdownOn=parse_date(`Permanent Shutdown`,format="%*%d %B %Y"),
+  pauseOn=parse_date(`Long-term Shutdown`,format="%*%d %B %Y"),
+  restartOn=parse_date(`Restart`,format="%*%d %B %Y"),
+  buildYears=as.integer(ymd(connectToGrid)-ymd(startBuild))/365
+  ) |> left_join(rlist %>% select(-`First Grid Connection`),by=join_by(reactorName==Name)) |> rename(CountryCode=Country) 
+
+fullrdtw<-rdtw |> left_join(ccodes,by=join_by(CountryCode==code2)) 
+
+stat_box_data <- function(y) {
+  return( 
+    data.frame(
+      y = 0, 
+      label = paste0('n=', length(y))
+    )
+  )
+}
+stat_box_data2 <- function(y) {
+  return( 
+    data.frame(
+      y = 30, 
+      label = paste0('median=', comma(median(y)), 'yrs')
+    )
+  )
+}
+fullrdtw$XXX<-fct(fullrdtw$Country,
+        levels=c(
+          "Sweden","Spain","South Africa","Slovenia","Slovakia","Russian Federation","Romania","Pakistan",
+          "USA","United Kingdom","United Arab Emirates", "Ukraine", "Turkey", "Switzerland",
+          "Netherlands","Mexico","Lithuania","Korea (the Republic of)","Kazakhstan","Japan","Italy","Iran (Islamic Republic of)","India","Hungary",
+          "Germany","France","Finland","Egypt","Czechia","China","Canada","Bulgaria","Brazil","Belgium","Belarus","Bangladesh","Armenia","Argentina"
+        ))
+```
+```{r}
+recent<-fullrdtw |> filter((today()-ymd(connectToGrid))<(365*20))
+```
+
+```{r}
+plotit<-function(.data,title) {
+  .data |> ggplot(aes(group=XXX,x=fct_reorder(XXX,buildYears,.desc=TRUE),y=buildYears)) + 
+  geom_boxplot(color="purple")  + 
+  stat_summary(
+    fun.data = stat_box_data2, 
+    geom = "text", 
+    size = 3,
+    hjust = 0,
+    vjust = 0.5
+  ) + 
+  stat_summary(
+    fun.data = stat_box_data, 
+    geom = "text", 
+    size = 3,
+    hjust = 0,
+    vjust = 0.5
+  ) + 
+  coord_flip()+ 
+  annotate("text",x=1.5,y=5,label="Data: IAEA") +
+  labs(x="",y="Years",title=title)
+}
+
+p<-plotit(recent,"Build time for reactors completed during the past 15 years\n(excludes research, ice-breaker, \nand aircraft carrier reactors)")
+p
+dopng("GlobalReactorBuildTimesLast15years2024.png",p,h=2800)
+p<-plotit(fullrdtw,"Build time for all nuclear power reactors\n(excludes research, ice-breaker, \nand aircraft carrier reactors)")
+p
+dopng("GlobalReactorBuildTimesAll2024.png",p,h=2800)
+
+```
+```{r}
+library(readxl)
+rrfile<-"ResearchReactorList2024.xlsx"
+rs<-excel_sheets(rrfile)
+rr<-read_excel(rrfile,skip=1,sheet="Sheet1")
+p<-rr |> filter(Status %in% c("OPERATIONAL","UNDER CONSTRUCTION","PLANNED")) |> ggplot(aes(x=Country)) + 
+  labs(x="",y="Number",title="Research Reactors\n(Excluding decommissioned or shutdown)")+
+  geom_bar(aes(fill=Status),position="stack") + coord_flip()
+p
+dopng("research-reactors-by-country2024.png",p,h=2500,w=2200)
+```
+
+
