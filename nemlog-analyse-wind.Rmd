@@ -20,6 +20,8 @@ options(scipen=99999)
 
 
 ```{r}
+dfwmayonly<-read_csv("NEM WIND from NEM_WIND (MW) _ Period_ 2024-04-30 23_30 to 2024-05-31 23_29 _ GPE NEMLog-data-2025-01-18 19_43_30.csv") |> 
+  rename(time=Time,wind=`WIND NEM`) |> mutate(pow=wind)
 dfw<-read_csv("NEM WIND from NEM_WIND (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 08_54_17.csv") |> 
   rename(time=Time,wind=`WIND NEM`) |> mutate(pow=wind)
 dfs<-read_csv("NEM SOLAR from NEM_SOLAR (MW) _ Period_ 2024-01-01 00_30 to 2025-01-01 00_29 _ GPE NEMLog-data-2025-01-16 13_57_16.csv") |> 
@@ -34,15 +36,33 @@ df<-bind_cols(dfw,dfs,dfrts) |> mutate(time=`time...1`) |> select(time,solar,win
 ndays=3
 meanpow=mean(df$pow)
 
+findmin<-function(v,wlen,p) {
+  rs<-roll_sum(v,n=wlen,fill=0,align="left")
+  names(rs)=seq(1,length(rs))
+  print(v)
+  print(rs)
+  mm=9999999999
+  nm=""
+  for(i in seq(1,length(rs))) {
+    if (p(rs[i]) && rs[i]<mm) {
+      nm=names(rs)[i]
+      mm=rs[i]
+    }
+  }
+  tibble(min=mm,ix=as.numeric(nm),maxrs=max(rs[rs>0]),meanrs=mean(rs[rs>0]))
+}
+
+
 dostats<-function(df,tag,meanpow,ndays=7,doplot=F) {
   pdays=nrow(df)/(12*24)
   pos=as.integer(0.1*nrow(df))
-  rollsum<-roll_sum(df$pow/12,n=12*ndays*24)
-  minrollsum<-min(rollsum[rollsum>0])
-  ixmin<-which.min(rollsum[rollsum>0])
+  t<-findmin(df$pow/12,12*ndays*24,function(v) {v>1})
+  print(t)
+  minrollsum=t$min
+  ixmin=t$ix
   print(paste0("Start of MinWeek: ",df$time[ixmin]))
-  maxrollsum<-max(rollsum[rollsum>0])
-  meanrollsum<-mean(rollsum[rollsum>0])
+  maxrollsum=t$maxrs
+  meanrollsum=t$meanrs
   periodoutput<-sum(df$pow/12)
   print(paste0("Period days : ",pdays," days"))
   print(paste0("Window days : ",ndays," days"))
@@ -75,6 +95,8 @@ dfjuly<-df |> filter(time>=ymd("2024-07-01") & time<ymd("2024-08-01"))
 
 pmaywind<-dostats(dfwmay,"(May wind)",mean(dfw$pow),7,T)
 pmaywind
+```
+```{r}
 pjunewind<-dostats(dfwjune,"(June wind)",mean(dfw$pow),7,T)
 pjunewind
 pjulywind<-dostats(dfwjuly,"(July wind)",mean(dfw$pow),7,T)
@@ -84,9 +106,14 @@ pjulywind
 #dopng("NEMWind-June2024.png",pjune)
 #dopng("NEMWind-July2024.png",pjuly)
 pjune<-dostats(dfjune,"(June wind+solar)",mean(df$pow),2,T)
-pmay<-dostats(dfmay,"(May wind+solar)",mean(df$pow),2,T)
+pmay1<-dostats(dfmay,"(May wind+solar)",mean(df$pow),1,T)
+pmay2<-dostats(dfmay,"(May wind+solar)",mean(df$pow),2,T)
+pmay7<-dostats(dfmay,"(May wind+solar)",mean(df$pow),7,T)
 pjuly<-dostats(dfjuly,"(July wind+solar)",mean(df$pow),2,T)
-pmay
 pjune
 pjuly
+pmay1
+pmay2
+pmay7
+#dopng("NEMWindSolar-May2024.png",pmay7)
 ```
