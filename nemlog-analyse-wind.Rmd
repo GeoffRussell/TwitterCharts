@@ -39,8 +39,8 @@ meanpow=mean(df$pow)
 findmin<-function(v,wlen,p) {
   rs<-roll_sum(v,n=wlen,fill=0,align="left")
   names(rs)=seq(1,length(rs))
-  print(v)
-  print(rs)
+  #print(v)
+  #print(rs)
   mm=9999999999
   nm=""
   for(i in seq(1,length(rs))) {
@@ -57,7 +57,7 @@ dostats<-function(df,tag,meanpow,ndays=7,doplot=F) {
   pdays=nrow(df)/(12*24)
   pos=as.integer(0.1*nrow(df))
   t<-findmin(df$pow/12,12*ndays*24,function(v) {v>1})
-  print(t)
+  #print(t)
   minrollsum=t$min
   ixmin=t$ix
   print(paste0("Start of MinWeek: ",df$time[ixmin]))
@@ -95,16 +95,14 @@ dfjuly<-df |> filter(time>=ymd("2024-07-01") & time<ymd("2024-08-01"))
 
 pmaywind<-dostats(dfwmay,"(May wind)",mean(dfw$pow),7,T)
 pmaywind
-```
-```{r}
 pjunewind<-dostats(dfwjune,"(June wind)",mean(dfw$pow),7,T)
 pjunewind
 pjulywind<-dostats(dfwjuly,"(July wind)",mean(dfw$pow),7,T)
 pjulywind
 
-#dopng("NEMWind-May2024.png",pmay)
-#dopng("NEMWind-June2024.png",pjune)
-#dopng("NEMWind-July2024.png",pjuly)
+dopng("NEMWind-May2024.png",pmaywind)
+dopng("NEMWind-June2024.png",pjunewind)
+dopng("NEMWind-July2024.png",pjulywind)
 pjune<-dostats(dfjune,"(June wind+solar)",mean(df$pow),2,T)
 pmay1<-dostats(dfmay,"(May wind+solar)",mean(df$pow),1,T)
 pmay2<-dostats(dfmay,"(May wind+solar)",mean(df$pow),2,T)
@@ -115,5 +113,5 @@ pjuly
 pmay1
 pmay2
 pmay7
-#dopng("NEMWindSolar-May2024.png",pmay7)
+dopng("NEMWindSolar-May2024.png",pmay7)
 ```
