@@ -3,8 +3,8 @@
 .RData
 .Ruserdata
 tmp/
-growthtables*.csv
-growthtables*.rds
+pris*sep-8*.csv
+pris*oct-14*.csv
 Availability-by-Country.png
 Availability-by-CountryFrUs.png
 Availability-by-CountryFrUsCh.png
