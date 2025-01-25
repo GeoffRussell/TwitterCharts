@@ -13,15 +13,25 @@ comma<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
 ```
 
 ```{r}
-percReduction<-function(x,z) {
+percIncrease<-function(desc,x,z) {
+  if (z>x) {
+    cat(paste0("Increase (",desc,") in percentage from ",x, " to ",z," is ",comma(100*(z/x-1)),"%\n"))
+  }
+  else {
+    cat("Second argument must be greater than first")
+  }
+}
+percIncrease("European LNG imports 2021 to 2023",107.5,169.1)
+
+percReduction<-function(desc,x,z) {
   if (z<x) {
-    cat(paste0("Reduction in percentage from ",x, " to ",z," is ",comma(100*(1-z/x)),"%"))
+    cat(paste0("Reduction (",desc,") in percentage from ",x, " to ",z," is ",comma(100*(1-z/x)),"%\n"))
   }
   else {
     cat("Second argument must be less than first")
   }
 }
-percReduction(1020,936)
+percReduction("Global gas trade 2021 to 2023",1020.4,936.4)
 ```
 
 ```{r}
