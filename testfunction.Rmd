@@ -8,6 +8,72 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(RcppRoll)
+comma<-function(x) prettyNum(signif(x,digits=3),big.mark=",")
+```
+
+```{r}
+percReduction<-function(x,z) {
+  if (z<x) {
+    cat(paste0("Reduction in percentage from ",x, " to ",z," is ",comma(100*(1-z/x)),"%"))
+  }
+  else {
+    cat("Second argument must be less than first")
+  }
+}
+percReduction(1020,936)
+```
+
+```{r}
+df<-tibble(r=runif(100))
+rs<-roll_sum(df$r,n=6)
+str(rs)
+names(rs)=seq(1,length(rs))
+findmin<-function(v,wlen,p) {
+  rs<-roll_sum(v,n=wlen,fill=0,align="left")
+  names(rs)=seq(1,length(rs))
+  print(v)
+  print(rs)
+  mm=9999999999
+  nm=""
+  for(i in seq(1,length(rs))) {
+    if (p(rs[i]) && rs[i]<mm) {
+      nm=names(rs)[i]
+      mm=rs[i]
+    }
+  }
+  tibble(min=mm,ix=nm)
+}
+df<-tibble(r=runif(50))
+df
+t<-findmin(df$r,6,function(v) {v>1})
+t
+```
+rs
+rs>2
+mins<-min(rs[rs>1])
+minix<-which(rs==mins)
+mins
+minix
+s<-seq(1,length(rs))
+rs[s>=minix & s<=minix+6]=1
+rs
+mins2<-min(rs[rs>1])
+minix2<-which(rs==mins2)
+mins2
+minix2
+
+```
+s<-seq(1,length(rs))
+mins
+minix
+rs[s>=minix & s<=minix+6]=1
+rs
+mins2<-min(rs[rs>1])
+minix2<-which.min(rs[rs>1])
+mins2
+minix2
+rs[rs>1]
 ```
 
 ```{r data}
@@ -17,6 +83,8 @@ df<-tribble(
   2001, 850, 2100.8, 3698,
   2002, 850, 2300.8, 4698
 )
+
+
 
 ccc<-c('Reference Unit Power (MWe)','Annual Time Online (Hours)','Electricity Supplied (GWh)')
 df |> pivot_longer(cols=ccc) |> select(Yeark)
