@@ -1,0 +1,37 @@
+---
+title: "masdar-baseload"
+author: "GeoffRussell"
+date: "2025-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Run some numbers based on Osmond tweet
+
+
+Tweet says 5.2GW solar and 19GWh battery
+
+[Press release](https://masdar.ae/en/news/newsroom/uae-president-witnesses-launch-of-worlds-first-24-7-solar-pv-battery-storage) says 1 GW baseload from
+this configuration. 
+
+
+```{r}
+# at 30% CF
+cf=0.20
+dailyEnergyGWh<-5.2e9*24*cf/1e9
+
+```
+
+The claims imply a 20% capacity factor; which is way too low for Abu Dhabi. It should be 28% of so.
+
+```{r}
+# at 30% CF
+cfexpected=0.28
+dailyEnergyGWh<-5.2e9*24*cfexpected/1e9
+```
+
+At 28% CF the average output is 35 GWh per day. The chart in the tweet says 24 GWh per day.
