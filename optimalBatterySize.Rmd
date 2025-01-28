@@ -88,16 +88,26 @@ runCalc<-function(df,power,days) {
   }
   out
 }
-res<-runCalc(dfwinterSA,powerSA,55)
+resSA<-runCalc(dfwinterSA,powerSA,55)
 ```
 
 ```{r}
-res |> ggplot() + 
-  geom_line(aes(x=date,y=pv),color="green") +
-  geom_line(aes(x=date,y=(pvout+stout)/1e6),color="blue")
+resQLD<-runCalc(dfsummerQLD,powerQLD,19)
+```
 
-res |> ggplot() + 
-  geom_line(aes(x=date,y=instorage/1e6),color="green") 
+```{r}
+doplot<-function(res) {
+  p<-res |> ggplot() + 
+    geom_line(aes(x=date,y=pv),color="green") +
+    geom_line(aes(x=date,y=(pvout+stout)/1e6),color="blue")
+
+  q<-res |> ggplot() + 
+    geom_line(aes(x=date,y=instorage/1e6),color="green") 
+  print(p)
+  print(q)
+}
+doplot(resQLD)
+doplot(resSA)
 ```
 
 ```{robsolete}
