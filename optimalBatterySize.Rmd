@@ -1,0 +1,148 @@
+---
+title: "optimalBatterySize"
+author: "GeoffRussell"
+date: "2025-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+comma<-function(x) prettyNum(signif(x,digits=6),big.mark=",")
+options(scipen=9999999)
+```
+
+Imagine you want to build a baseload system with solar PV and batteries. What is the optimal battery size for a given sized PV farm?
+
+Let's try a few alternatives using some real data. 
+
+We have 55 days from winter 2024 in SA and 19 from Summer 2024 in QLD. The respective capacity factors were 11 and 22 per cent.
+
+```{r}
+# Checking facilities in openNem, there was 735 MW available all through this 55 day period
+powerSA<-735e6    # as of 26/1/2025
+powerQLD<-3830e6    # as of 26/1/2025
+dfsummerQLD<-read_csv("openNEMMerge-QLD-30-12-2024-19D.csv") |> select(date,`Solar (Utility) - MW`) |> rename(solar=`Solar (Utility) - MW`)
+dfwinterSA<-read_csv("openNEMMerge-SA-10-07-2024-55D.csv") |> select(date,`Solar (Utility) - MW`) |> rename(solar=`Solar (Utility) - MW`)
+calcCF<-function(df,power,days) {
+  GWh<-sum(df$solar)/12/1e3
+  GWh*1e9/(power*24*days)
+}
+calcCF(dfwinterSA,powerSA,55)
+calcCF(dfsummerQLD,powerQLD,19)
+```
+
+# Calculating the optimal battery size: baseload
+
+The primary goal is to find the smallest battery size consistent with supplying constant power.  
+
+The constant power has to equal the power times the capacity factor. So if the power was 3 GW and the capacity factor was 33%, then the best we can do would
+be 1 GW of constant power. The question then is what sized battery will we need to supply that power?
+
+Algorithm: assume an infinite storage, and known annual capacity factor. Define $CF_p$ as 
+the maximum power times the CF. Then when PV output is below $CF_p$, send to grid along with anything in the battery upto but
+not exceeding the $CF_p$. If PV output is greater than or equal to $CF_p$, then send $CF_p$ to grid and excess to storage.
+
+```{r}
+runCalc<-function(df,power,days) {
+  out<-tibble()
+  cfp<-calcCF(df,power,days)*power
+  efac<-1/12    # factor for converting to energy for 5-minute data
+  print(paste0("CFp: ",comma(cfp/1e6)," MW target energy out per time period: ",comma(cfp*efac/1e6)," MWh"))
+  eStor<-0 
+  eOut<-0
+  tEShort<-0
+  nn<-0
+  for(i in 1:nrow(df)) {
+    p<-df$solar[i]*1e6
+    if (p>=cfp) {
+      eOut<-eOut+cfp*efac
+      eStor<-eStor+(p-cfp)*efac
+      summaryPVOut=cfp*efac ; summaryStOut=0 ; summaryStored=(p-cfp)*efac ; summaryAvail=eStor
+      case="OK      "
+    }
+    else {
+      eOut<-eOut+p*efac
+      summaryPVOut=p*efac 
+      shortE<-(cfp-p)*efac
+      if (eStor>=shortE) {
+        eStor<-eStor-shortE
+        summaryStOut=shortE ; summaryStored=0 ; summaryAvail=eStor
+        shortE<-0
+        case="OK+PV+St"
+      }
+      else {
+        shortE<-shortE-eStor
+        summaryStOut=eStor ; summaryStored=0 ; summaryAvail=0
+        tEShort<-tEShort+shortE
+        eStor<-0
+        case="Short  "
+      }
+    }
+#    print(paste0(df$date[i]," case: ",case," PVOut: ",comma(summaryPVOut), " Storage Out:",comma(summaryStOut)," Stored: ",comma(summaryStored)," Avail: ",comma(summaryAvail),"\n"))
+    #nn=nn+1
+    if (nn>2880) {
+      break;
+    }
+    out<-bind_rows(out,tibble(date=df$date[i],pv=df$solar[i],pvout=summaryPVOut/efac,stout=summaryStOut/efac,stored=summaryStored,instorage=summaryAvail))
+  }
+  out
+}
+res<-runCalc(dfwinterSA,powerSA,55)
+```
+
+```{r}
+res |> ggplot() + 
+  geom_line(aes(x=date,y=pv),color="green") +
+  geom_line(aes(x=date,y=(pvout+stout)/1e6),color="blue")
+
+res |> ggplot() + 
+  geom_line(aes(x=date,y=instorage/1e6),color="green") 
+```
+
+```{robsolete}
+for(hourlybl in c(1)*utilityMW*3) {
+  bl<-hourlybl*24
+  for(bmax in c(4)*utilityMW) {
+    print(paste("Baseload: ",comma(bl),"  max storage: ",comma(bmax),"\n"))
+    bcharge=0
+    nn=0
+    for(i in 1:nrow(dfs)) {
+      e<-dfs$solar[i] * 1e9
+      eOut=0
+      eReq=bl
+      if (e<=bl) {
+        eOut=e
+        eReq=bl-eOut
+        print(paste("Day ",i," all output: ",comma(e)," short: ",comma(eReq),"  bstate:",comma(bcharge/bmax),"\n"))
+        e=0
+        if (bcharge>0) {
+          inc=min(eReq,bcharge)
+          eOut=eOut+inc
+          eReq=eReq-inc
+          print(paste("    battery contributes: ",comma(inc),"\n"))
+          bcharge=bcharge-inc
+        }
+      }
+      else {
+        eOut=bl
+        leftOver=e-bl
+        bAvail=bmax-bcharge
+        bInc=min(bAvail,leftOver)
+        bcharge=bcharge+bInc
+        leftOver=leftOver-bcharge
+        print(paste("Day ",i," PV meets baseload:",comma(e)," leftOver for charging:",comma(leftOver),"   added charge:",comma(bInc)," state: ",comma(bcharge/bmax),"\n"))
+        if (leftOver>0) {
+           print(paste("     excess wasted: ",leftOver,"\n"))
+        }
+      }
+      if (nn>30) {
+        break;
+      }
+      nn=nn+1
+    }
+  }
+}
+```
+
+
