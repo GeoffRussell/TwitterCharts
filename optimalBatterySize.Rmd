@@ -10,6 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 comma<-function(x) prettyNum(signif(x,digits=6),big.mark=",")
 options(scipen=9999999)
+dopng<-function(name,p,w=2200,h=1300) {
+  png(name,width=w,height=h,units="px",res=300,type="cairo-png")
+  print(p)
+  dev.off()
+}
 ```
 
 Imagine you want to build a baseload system with solar PV and batteries. What is the optimal battery size for a given sized PV farm?
@@ -44,21 +49,40 @@ the maximum power times the CF. Then when PV output is below $CF_p$, send to gri
 not exceeding the $CF_p$. If PV output is greater than or equal to $CF_p$, then send $CF_p$ to grid and excess to storage.
 
 ```{r}
-runCalc<-function(df,power,days) {
+runCalc<-function(df,power,days,scaleTo,incfp=0,stlimit=1000e9) {
+  scaleFac<-1
+  if (scaleTo>0) {
+    scaleFac<-scaleTo/power
+  }
   out<-tibble()
-  cfp<-calcCF(df,power,days)*power
+  cfp<-calcCF(df,power,days)*power*scaleFac
+  
   efac<-1/12    # factor for converting to energy for 5-minute data
-  print(paste0("CFp: ",comma(cfp/1e6)," MW target energy out per time period: ",comma(cfp*efac/1e6)," MWh"))
+  if (incfp>0) {
+    cfp=incfp
+    print(paste0("CFp (target): ",comma(cfp/1e6)," MW target energy out per time period: ",comma(cfp*efac/1e6)," MWh"))
+  }
+  else {
+    print(paste0("CFp: ",comma(cfp/1e6)," MW target energy out per time period: ",comma(cfp*efac/1e6)," MWh"))
+  }
   eStor<-0 
+  eWaste<-0 
   eOut<-0
   tEShort<-0
   nn<-0
   for(i in 1:nrow(df)) {
-    p<-df$solar[i]*1e6
+    p<-df$solar[i]*1e6*scaleFac
     if (p>=cfp) {
       eOut<-eOut+cfp*efac
       eStor<-eStor+(p-cfp)*efac
-      summaryPVOut=cfp*efac ; summaryStOut=0 ; summaryStored=(p-cfp)*efac ; summaryAvail=eStor
+      stored<-(p-cfp)*efac
+      if (eStor>stlimit) {
+        eWaste=eWaste+(eStor-stlimit)
+        stored<-stored-(eStor-stlimit)
+        eStor<-stlimit
+      }
+      #summaryPVOut=cfp*efac ; summaryStOut=0 ; summaryStored=(p-cfp)*efac ; summaryAvail=eStor
+      summaryPVOut=cfp*efac ; summaryStOut=0 ; summaryStored=stored ; summaryAvail=eStor
       case="OK      "
     }
     else {
@@ -84,30 +108,121 @@ runCalc<-function(df,power,days) {
     if (nn>2880) {
       break;
     }
-    out<-bind_rows(out,tibble(date=df$date[i],pv=df$solar[i],pvout=summaryPVOut/efac,stout=summaryStOut/efac,stored=summaryStored,instorage=summaryAvail))
+    out<-bind_rows(out,tibble(date=df$date[i],pv=df$solar[i]*scaleFac,pvout=summaryPVOut/efac,stout=summaryStOut/efac,stored=summaryStored,instorage=summaryAvail))
   }
-  out
+  out 
 }
-resSA<-runCalc(dfwinterSA,powerSA,55)
+#resQLD52G1G<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9)
+#resQLD52G1Gl19<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9,19e9)
+resSA52G1Gl19<-runCalc(dfwinterSA,powerSA,55,5.2e9,1e9,19e9)
 ```
 
 ```{r}
-resQLD<-runCalc(dfsummerQLD,powerQLD,19)
+resSA52G1G<-runCalc(dfwinterSA,powerSA,55,5.2e9,1e9)
+resSA52G<-runCalc(dfwinterSA,powerSA,55,5.2e9)
+resSA1G<-runCalc(dfwinterSA,powerSA,55,1e9)
+resSA<-runCalc(dfwinterSA,powerSA,55,0)
+resSA38G<-runCalc(dfwinterSA,powerSA,55,3.83e9)
+resQLD1G<-runCalc(dfsummerQLD,powerQLD,19,1e9)
+resQLD<-runCalc(dfsummerQLD,powerQLD,19,0)
 ```
-
 ```{r}
-doplot<-function(res) {
+getPV<-function(.data) {
+  .data |> select(date,pv)
+}
+getPowerOut<-function(.data) {
+  .data |> select(date,pvout,stout) |> pivot_longer(cols=c('pvout','stout'),names_to="Output",values_to="MW")
+}
+getStorage<-function(.data) {
+  .data |> select(date,instorage) 
+}
+doplot<-function(res,pow,scaleTo,tag,blimit=0) {
+  scaleFac<-1
+  if (scaleTo>0) {
+    scaleFac<-scaleTo/pow
+  }
+  pow<-pow/1e6*scaleFac
+  btag="The battery is assumed to have an infinite storage capacity\n"
+  if (blimit>0) {
+    btag=paste0("The battery capacity is limited to ",comma(blimit),"GWh\n")
+  }
   p<-res |> ggplot() + 
-    geom_line(aes(x=date,y=pv),color="green") +
-    geom_line(aes(x=date,y=(pvout+stout)/1e6),color="blue")
-
-  q<-res |> ggplot() + 
-    geom_line(aes(x=date,y=instorage/1e6),color="green") 
-  print(p)
-  print(q)
+    geom_line(aes(x=date,y=pv),color="red")+  
+    geom_line(aes(x=date,y=(stout+pvout)/1e6),color="cyan") + 
+    labs(x="",y="Megawatts",title=paste0("Smoothing a ",pow," MW solar farm with a batteries"),subtitle=paste0("The cyan curve shows the output smoothed by the  use of the battery\n",tag))
+  
+  q<-res |> getStorage() |> ggplot() + 
+    geom_line(aes(x=date,y=instorage/1e6),color="cyan")+
+    labs(x="",y="Megawatt-hours",title=paste0("Smoothing a ",pow," MW solar farm with batteries"),
+    subtitle=paste0(btag,"The chart shows the energy in the battery over time\n",tag))
+  r<-res |> mutate(day=date(date)) |> group_by(day) |> summarise(solar=sum(pvout/12/1e6),battery=sum(stout/12/1e6)) |> pivot_longer(cols=c('solar','battery')) |>
+  ggplot() + geom_col(aes(x=day,y=value,fill=name))+
+    labs(x="",y="Megawatt-hours/day",title=paste0("Smoothing a ",pow," MW solar farm with batteries"),
+    subtitle=paste0("The chart shows the daily energy output\nand the components direct from the sun or via the battery\n",tag))
+  
+  list(p,q,r)
 }
-doplot(resQLD)
-doplot(resSA)
+
+lqld52g1g=doplot(resQLD52G1G,powerQLD,5.2e9,"Underlying data: QLD 2024, openNEM",blimit=0)
+lqld52g1g[[1]]
+lqld52g1g[[2]]
+lqld52g1g[[3]]
+
+lqld52g1gl19=doplot(resQLD52G1Gl19,powerQLD,5.2e9,"Underlying data: QLD 2024, openNEM",blimit=19)
+lqld52g1gl19[[1]]
+lqld52g1gl19[[2]]
+lqld52g1gl19[[3]]
+
+lsa52g1g=doplot(resSA52G1G,powerSA,5.2e9,"Underlying data: SA 2024, openNEM",blimit=0)
+lsa52g1g[[1]]
+lsa52g1g[[2]]
+lsa52g1g[[3]]
+
+lsa52g1gl19=doplot(resSA52G1Gl19,powerSA,5.2e9,"Underlying data: SA 2024, openNEM",blimit=19)
+lsa52g1gl19[[1]]
+lsa52g1gl19[[2]]
+lsa52g1gl19[[3]]
+```
+```{r}
+lsa=doplot(resSA,powerSA,0,"Underlying data: SA 2024, openNEM",blimit=0)
+lsa[[1]]
+lsa[[2]]
+lsa[[3]]
+lsa52g=doplot(resSA52G,powerSA,5.2e9,"Underlying data: SA 2024, openNEM",blimit=0)
+lsa52g[[1]]
+lsa52g[[2]]
+lsa52g[[3]]
+```
+```{r}
+
+lsa1g=doplot(resSA1G,powerSA,1e9,"Underlying data: SA 2024, openNEM",blimit=0)
+lsa1g[[1]]
+lsa1g[[2]]
+lsa1g[[3]]
+lsa38g=doplot(resSA38G,powerSA,3.8e9,"Underlying data: SA 2024, openNEM",blimit=0)
+lsa38g[[1]]
+lsa38g[[2]]
+lsa38g[[3]]
+lqld=doplot(resQLD,powerQLD,0,"Underlying data: QLD 2024, openNEM",blimit=0)
+lqld[[1]]
+lqld[[2]]
+lqld[[3]]
+lqld1g=doplot(resQLD1G,powerQLD,1e9,"Underlying data: QLD 2024, openNEM",blimit=0)
+lqld1g[[1]]
+lqld1g[[2]]
+lqld1g[[3]]
+```
+
+```{r}
+dopng("QLD-solar-baseload-52l19",lqld52g1gl19[[1]])
+dopng("QLD-solar-baseload-battery-52l19",lqld52g1gl19[[2]])
+dopng("QLD-solar-baseload-makeup-52l19",lqld52g1gl19[[3]])
+dopng("QLD-solar-baseload.png",lqld[[1]])
+dopng("QLD-solar-baseload-battery.png",lqld[[2]])
+dopng("SA-solar-baseload.png",lsa[[1]])
+dopng("SA-solar-baseload-battery.png",lsa[[2]])
+dopng("SA-solar-baseload-scaled38.png",lsa38g[[1]])
+dopng("SA-solar-baseload-battery-scaled38.png",lsa38g[[2]])
 ```
 
 ```{robsolete}
