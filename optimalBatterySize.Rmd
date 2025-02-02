@@ -112,8 +112,8 @@ runCalc<-function(df,power,days,scaleTo,incfp=0,stlimit=1000e9) {
   }
   out 
 }
-#resQLD52G1G<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9)
-#resQLD52G1Gl19<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9,19e9)
+resQLD52G1G<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9)
+resQLD52G1Gl19<-runCalc(dfsummerQLD,powerQLD,19,5.2e9,1e9,19e9)
 resSA52G1Gl19<-runCalc(dfwinterSA,powerSA,55,5.2e9,1e9,19e9)
 ```
 
@@ -149,7 +149,7 @@ doplot<-function(res,pow,scaleTo,tag,blimit=0) {
   p<-res |> ggplot() + 
     geom_line(aes(x=date,y=pv),color="red")+  
     geom_line(aes(x=date,y=(stout+pvout)/1e6),color="cyan") + 
-    labs(x="",y="Megawatts",title=paste0("Smoothing a ",pow," MW solar farm with a batteries"),subtitle=paste0("The cyan curve shows the output smoothed by the  use of the battery\n",tag))
+    labs(x="",y="Megawatts",title=paste0("Smoothing a ",pow," MW solar farm with batteries"),subtitle=paste0("The cyan curve shows the output smoothed by the  use of the battery\n",tag))
   
   q<-res |> getStorage() |> ggplot() + 
     geom_line(aes(x=date,y=instorage/1e6),color="cyan")+
@@ -214,9 +214,9 @@ lqld1g[[3]]
 ```
 
 ```{r}
-dopng("QLD-solar-baseload-52l19",lqld52g1gl19[[1]])
-dopng("QLD-solar-baseload-battery-52l19",lqld52g1gl19[[2]])
-dopng("QLD-solar-baseload-makeup-52l19",lqld52g1gl19[[3]])
+dopng("QLD-solar-baseload-52l19.png",lqld52g1gl19[[1]])
+dopng("QLD-solar-baseload-battery-52l19.png",lqld52g1gl19[[2]])
+dopng("QLD-solar-baseload-makeup-52l19.png",lqld52g1gl19[[3]])
 dopng("QLD-solar-baseload.png",lqld[[1]])
 dopng("QLD-solar-baseload-battery.png",lqld[[2]])
 dopng("SA-solar-baseload.png",lsa[[1]])
