@@ -43,6 +43,13 @@ dfg<-read_csv(detailsfilename)
 dfl<-read_csv(reactorfilename) |> rename(code2=Country) |> inner_join(ccodes,by=join_by(code2))
 ```
 
+Find reactors with top availability stats.
+
+```{r}
+dfoav<-dfo |> filter(name=="Annual Time Online (Hours)" & Year==2023)
+dfoav |> filter(value>8760*0.97)
+```
+
 ```{r}
 cfallyears<-function() {
   out<-inner_join(dfo,dfl,by=join_by(reactor==Name)) |> 
