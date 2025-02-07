@@ -1,0 +1,114 @@
+---
+title: "us-eprices"
+author: "GeoffRussell"
+date: "2025-02-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(zoo)
+library(ggpubr)
+```
+
+## US electricity prices  
+
+
+```{r data}
+dfc<-read_csv("uselectricity-co2intensity.csv")
+```
+```{r}
+dfp<-read_csv("uselectricity-prices.csv",show_col_types=T) |> mutate(across(`Residential (c/kWh)`:`Total (c/kWh)`, ~ .x * 1.59))
+dfs<-read_csv("uselectricity-sources.csv",show_col_types=T)
+```
+```{r}
+df<-inner_join(dfp,inner_join(dfs,dfc)) |> filter(State!="Hawaii")
+th<-theme(plot.title=element_text(size=40,face="bold"),text=element_text(size=28))
+doplots<- function(df,colname) {
+  p0<-df |> filter(Nuclear<=0) |> ggplot(aes(x=Renewables,y=!!as.symbol(colname))) +
+    geom_text(aes(y=!!as.symbol(colname),vjust=-0.3,label=State),size=12) + 
+    geom_point(size=5) + geom_smooth(method="lm")+ annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0)+ylim(0,50) +
+    labs(x="Percentage of Renewables",y=paste0("Price: ",colname),title=paste0(colname," electricity prices (AUD)\nin US States with NO nuclear power"))+th
+  p<-df |> filter(Nuclear>0) |> ggplot(aes(x=Nuclear,y=!!as.symbol(colname))) +
+    geom_text(aes(y=!!as.symbol(colname),vjust=-0.3,label=State),size=12) + 
+    geom_point(size=5) + geom_smooth(method="lm")+ annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) + ylim(0,50) +
+    labs(x="Percentage of Nuclear Electricity",y=paste0("Price: ",colname),title=paste0(colname," electricity prices (AUD)\nin US States with nuclear power"))+th
+  q<-df |> ggplot(aes(x=`Solar`+`Wind`,y=!!as.symbol(colname))) + 
+    geom_text(aes(y=!!as.symbol(colname),vjust=-0.3,label=State),size=12) + 
+    geom_point(size=5) + geom_smooth(method="lm") + annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) + ylim(0,50)+
+    labs(x="Percentage of Wind+Solar Electricity",y=paste0("Price: ",colname),title=paste0(colname," electricity prices (AUD)\nin all US States"))+th
+  r<-df |> ggplot(aes(x=`Fossil fuels`,y=!!as.symbol(colname))) + 
+    geom_text(aes(y=!!as.symbol(colname),vjust=-0.3,label=State),size=12) + 
+    geom_point(size=5) + geom_smooth(method="lm")+ annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0)  + ylim(0,50)+
+    labs(x="Percentage of Fossil Fuel Electricity",y=paste0("Price: ",colname),title=paste0(colname," electricity prices (AUD)\nin all US States"))+th
+  s<-df |> ggplot(aes(x=`Hydro`,y=!!as.symbol(colname))) + 
+    geom_text(aes(y=!!as.symbol(colname),vjust=-0.3,label=State),size=12) + 
+    geom_point(size=5) + geom_smooth(method="lm")+ annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) + ylim(0,50)+
+    labs(x="Percentage of Hydro Electricity",y=paste0("Price: ",colname),title=paste0(colname," electricity prices (AUD)\nin all US States"))+th
+  list(p,p0,q,r,s)
+}
+p1<-df |> ggplot(aes(x=`Nuclear`,y=`CO2Intensity`)) + 
+    geom_text(aes(y=`CO2Intensity`,label=`State`),vjust=-0.3,size=12) + 
+    geom_point(size=7) + geom_smooth(method="lm") + annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) +
+    labs(title="CO2 Intensity as a function of\nthe percentage of nuclear power in each state")+th
+p2<-df |> ggplot(aes(x=`Wind`+`Solar`,y=`CO2Intensity`)) + 
+    geom_text(aes(y=`CO2Intensity`,label=`State`),vjust=-0.3,size=12) + 
+    geom_point(size=7) + geom_smooth(method="lm")+annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) +
+    labs(title="CO2 Intensity as a function of\nthe percentage of wind+solar power in each state")+th
+p3<-df |> ggplot(aes(x=`Renewables`+`Nuclear`,y=`CO2Intensity`)) + 
+    geom_text(aes(y=`CO2Intensity`,label=`State`),vjust=-0.3,size=12) + 
+    geom_point(size=7) + geom_smooth(method="lm")+annotate("text",x=10,y=3,label="Data: Ember/OWID 2024",size=9,hjust=0) +
+    labs(title="CO2 Intensity as a function of\nthe percentage of clean electricity in each state")+th
+
+p1
+p2
+p3
+
+plotr<-doplots(df,'Residential (c/kWh)')
+plotr[[1]]
+plotr[[2]]
+plotr[[3]]
+plotr[[4]]
+plotr[[5]]
+
+plotco<-doplots(df,'Commercial (c/kWh)')
+
+plotc<-doplots(df,'Industry (c/kWh)')
+plotc[[1]]
+plotc[[2]]
+plotc[[3]]
+plotc[[4]]
+plotc[[5]]
+page1<-ggarrange(
+  ggarrange(p1,p2,ncol=2,nrow=1),
+  ggarrange(p3,ncol=1),nrow=2
+)
+page1
+page<-ggarrange(
+plotlist=list(plotr[[1]],
+plotr[[2]],
+plotr[[3]],
+plotr[[4]],
+plotr[[5]],
+plotc[[1]],
+plotc[[2]],
+plotc[[3]],
+plotc[[4]],
+plotc[[5]]),nrow=5,ncol=2 )
+png("uselectricity-multiplotco2.png",type="cairo",width=4000,height=3200,units="px")
+print(page1)
+dev.off()
+png("uselectricity-multiplot.png",type="cairo",width=2000,height=4000,units="px")
+print(page)
+dev.off()
+```
+
+
+```{r}
+plotco[[1]] 
+plotco[[2]]
+plotco[[3]]
+plotco[[4]]
+plotco[[5]]
+```
