@@ -510,6 +510,11 @@ globalWindCapacityFactor
 globalSolarCapacityFactor<-(globalSolarTWh*1e12)/(globalSolarMW*1e6*24*365)
 globalSolarCapacityFactor
 
+print(paste0("Global capacity factors 2023: \n"))
+print(paste0("       Wind: ",globalWindCapacityFactor,"\n"))
+print(paste0("      Solar: ",globalSolarCapacityFactor,"\n"))
+print(paste0("      Nuclear: ",globalNuclearCapacityFactor,"\n"))
+
 solarToNuclear<-globalNuclearCapacityFactor/globalSolarCapacityFactor
 
 solarTonnesPerGW=70000
